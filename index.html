@@ -62,6 +62,10 @@
   .pal-item:active { cursor: grabbing; }
   .pal-swatch { width: 54px; flex: none; border-radius: 2px; background: var(--steel); }
   .pal-swatch.panel { height: 26px; background: #1b1517; border: 1px solid #888; }
+  .pal-swatch.basket { height: 22px; background: repeating-linear-gradient(90deg, #b9bec5 0 1px, transparent 1px 5px), repeating-linear-gradient(0deg, #b9bec5 0 1px, #eef0f2 1px 5px); border: 1px solid #8b9097; }
+  .pal-swatch.cart { height: 24px; background: #6b7f99; border-radius: 3px 3px 8px 8px; box-shadow: inset 0 -5px 0 #2b2e33; }
+  .pal-swatch.board { height: 30px; background: linear-gradient(90deg, #1f5f8b 0 46%, transparent 46% 54%, #1f5f8b 54%); }
+  .models { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .pal-item b { display: block; font-size: 13px; }
   .pal-item small { color: var(--muted); }
 
@@ -163,6 +167,14 @@
       <p class="hint">Arrastra una pieza al rack, o tócala para agregarla en el primer espacio libre.</p>
       <div class="palette" id="palette"></div>
     </section>
+    <section class="sec-pal">
+      <h2>Modelos de ejemplo</h2>
+      <p class="hint">Carga un modelo y ajústalo. Se puede deshacer.</p>
+      <div class="models">
+        <button data-model="1">Panel ganchos</button>
+        <button data-model="2">Canastos + casetón</button>
+      </div>
+    </section>
     <section class="sec-data">
       <h2>Datos del rack</h2>
       <div class="fields" id="metaFields">
@@ -196,7 +208,7 @@
       <div id="props"></div>
     </section>
     <section>
-      <h2>Resumen de vigas</h2>
+      <h2>Resumen de accesorios</h2>
       <table class="sum">
         <thead><tr><th>Accesorio</th><th>Dibujo</th><th>Total</th></tr></thead>
         <tbody id="sumBody"></tbody>
@@ -253,7 +265,16 @@ const TYPES = {
   inicio:  { name: 'Viga Inicio 10',      label: 'VIGA DE INICIO 10 cm',  short: 'Inicio 10',  cm: 10, slots: 2 },
 };
 const TYPE_ORDER = ['inicio', 'v7', 'v10', 'termino'];
-const PANEL_DEFAULT_H = 12;
+// Piezas que ocupan un rango de perforaciones (arriba / abajo)
+const KINDS = {
+  panel:  { name: 'Panel',              sub: 'con barras de ganchos',  h: 12, defaults: { bars: 3, spacing: 3.7 } },
+  basket: { name: 'Charola con rejilla', sub: 'canasto apilable',      h: 4,  defaults: { count: 2, separator: true } },
+  cart:   { name: 'Carrito con ruedas',  sub: 'carro móvil',           h: 7,  defaults: { count: 2 } },
+  board:  { name: 'Casetón',             sub: 'paneles que sobresalen', h: 24, defaults: { count: 4, color: '#1f5f8b' }, overflow: 8 },
+};
+const KIND_ORDER = ['panel', 'basket', 'cart', 'board'];
+const HEADROOM = 8;  // perforaciones extra sobre el rack cuando hay casetones
+const maxTop = kind => S.N + (KINDS[kind] && KINDS[kind].overflow || 0);
 const NEW_COL_WIDTH = 13;   // ancho de columna (caracteres) en Excel nuevo
 const NEW_ROW_HEIGHT = 15;  // alto de fila (pt) en Excel nuevo
 const STORE_KEY = 'editorVigas.v1';
@@ -263,7 +284,23 @@ function defaultState() {
     N: 48,
     meta: { pasillo: '45', lado: '2', metro: '14', bays: '1', rack: '56/365/250', largo: '250' },
     opts: { range: 'D8:H50', table: true, perLevel: 2, rearPerPanel: 2 },
-    items: [
+    items: modelItems(1),
+  };
+}
+function modelItems(n) {
+  if (n === 2) return [
+    { id: 1, kind: 'beam', type: 'v10', pos: 47 },
+    { id: 2, kind: 'beam', type: 'v10', pos: 31 },
+    { id: 3, kind: 'beam', type: 'v7', pos: 24 },
+    { id: 4, kind: 'basket', top: 23, bottom: 20, count: 2, separator: true },
+    { id: 5, kind: 'beam', type: 'v7', pos: 19 },
+    { id: 6, kind: 'beam', type: 'v7', pos: 15 },
+    { id: 7, kind: 'beam', type: 'v7', pos: 10 },
+    { id: 8, kind: 'basket', top: 7, bottom: 4, count: 2, separator: true },
+    { id: 9, kind: 'beam', type: 'inicio', pos: 3 },
+    { id: 10, kind: 'board', top: 53, bottom: 25, count: 4, color: '#1f5f8b' },
+  ];
+  return [
       { id: 1, kind: 'beam', type: 'termino', pos: 48 },
       { id: 2, kind: 'beam', type: 'v10', pos: 35 },
       { id: 3, kind: 'beam', type: 'v7', pos: 29 },
@@ -271,9 +308,12 @@ function defaultState() {
       { id: 5, kind: 'beam', type: 'v7', pos: 11 },
       { id: 6, kind: 'beam', type: 'v7', pos: 6 },
       { id: 7, kind: 'beam', type: 'inicio', pos: 2 },
-    ],
-  };
+  ];
 }
+const MODEL_META = {
+  1: { pasillo: '45', lado: '2', metro: '14', bays: '1' },
+  2: { pasillo: '42', lado: '2', metro: '8', bays: '1' },
+};
 
 let S = load() || defaultState();
 let nextId = Math.max(0, ...S.items.map(i => i.id)) + 1;
@@ -317,6 +357,13 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const byId = id => S.items.find(i => i.id === id);
 const beams = () => S.items.filter(i => i.kind === 'beam');
 const panels = () => S.items.filter(i => i.kind === 'panel');
+const ofKind = k => S.items.filter(i => i.kind === k);
+function newRangeItem(kind, top) {
+  const K = KINDS[kind];
+  const h = Math.min(K.h, maxTop(kind)) - 1;
+  top = clamp(top, h + 1, maxTop(kind));
+  return { id: -1, kind, top, bottom: top - h, ...K.defaults };
+}
 
 function beamRange(type, pos) { return [pos - TYPES[type].slots + 1, pos]; }
 function canPlaceBeam(type, pos, ignoreId) {
@@ -375,28 +422,29 @@ function currentBox() {
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const f = n => Math.round(n * 100) / 100;
 
-function geometry(W, H, N, withTable) {
+function geometry(W, H, N, withTable, extra) {
   const tableH = withTable ? 74 : 0;
   const tableGap = withTable ? 22 : 0;
   const topY = 18;
   const floorY = H - 16 - tableH - tableGap - 12;
-  const u = (floorY - topY) / N;
+  const T = N + (extra || 0);
+  const u = (floorY - topY) / T;
   const upW = 22, upL = 52, upR = W - 52 - upW;
   const innerL = upL + upW, innerR = upR;
   return {
     W, H, N, u, topY, floorY, upW, upL, upR, innerL, innerR, tableH,
     tableY: floorY + 12 + tableGap,
-    slotTop: p => topY + (N - p) * u,
-    vFromY: y => N - (y - topY) / u,
+    slotTop: p => topY + (T - p) * u,
+    vFromY: y => T - (y - topY) / u,
   };
 }
 
 function buildSVG(W, H, interactive) {
   const N = S.N;
-  const g = geometry(W, H, N, S.opts.table);
+  const items = preview ? [...S.items, preview] : S.items;
+  const g = geometry(W, H, N, S.opts.table, items.some(i => i.kind === 'board') ? HEADROOM : 0);
   const out = [];
   const u = g.u;
-  const items = preview ? [...S.items, preview] : S.items;
 
   out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>`);
 
@@ -431,6 +479,10 @@ function buildSVG(W, H, interactive) {
   for (const it of items.filter(i => i.kind === 'panel')) out.push(panelSVG(it, g, interactive));
   // Vigas
   for (const it of items.filter(i => i.kind === 'beam')) out.push(beamSVG(it, g, interactive));
+  // Piezas delante de las vigas
+  for (const k of ['basket', 'cart', 'board']) {
+    for (const it of items.filter(i => i.kind === k)) out.push(rangeSVG(it, g, interactive));
+  }
 
   // Tabla inferior
   if (S.opts.table) out.push(tableSVG(g));
@@ -481,6 +533,124 @@ function beamSVG(it, g, interactive) {
   return parts.join('');
 }
 
+function rangeSVG(it, g, interactive) {
+  if (it.kind === 'panel') return panelSVG(it, g, interactive);
+  const u = g.u;
+  const y1 = g.slotTop(it.top), y2 = g.slotTop(it.bottom) + u;
+  const x1 = g.innerL + 2, x2 = g.innerR - 2;
+  const { isSel, isPrev, bad } = stateOf(it);
+  const parts = [];
+  const op = isPrev ? ' opacity="0.65"' : (drag && drag.id === it.id && drag.removing ? ' opacity="0.4"' : '');
+  parts.push(`<g${interactive && !isPrev ? ` data-id="${it.id}"` : ''}${op}>`);
+  if (it.kind === 'basket') parts.push(basketShapes(it, x1, x2, y1, y2, u));
+  if (it.kind === 'cart') parts.push(cartShapes(it, x1, x2, y1, y2, u));
+  if (it.kind === 'board') parts.push(boardShapes(it, x1, x2, y1, y2, u));
+  if (interactive && (isSel || bad)) {
+    parts.push(`<rect x="${f(x1 - 2)}" y="${f(y1 - 2)}" width="${f(x2 - x1 + 4)}" height="${f(y2 - y1 + 4)}" fill="none" stroke="${bad ? '#c62828' : '#f2d600'}" stroke-width="3" pointer-events="none"/>`);
+  }
+  parts.push(rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2));
+  parts.push('</g>');
+  return parts.join('');
+}
+
+function rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2) {
+  if (!interactive || isPrev) return '';
+  const u = g.u, mid = (x1 + x2) / 2, parts = [];
+  const hh = Math.max(8, u * 0.7);
+  parts.push(`<rect data-handle="top" x="${f(x1)}" y="${f(y1 - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
+  parts.push(`<rect data-handle="bottom" x="${f(x1)}" y="${f(y2 - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
+  if (isSel) {
+    for (const yy of [y1, y2]) parts.push(`<rect x="${f(mid - 18)}" y="${f(yy - 4)}" width="36" height="8" rx="4" fill="#f2d600" stroke="#1d2126" stroke-width="1" pointer-events="none"/>`);
+  }
+  const tag = `${it.top} – ${it.bottom}`;
+  const ty = Math.max(y1 + 2, y2 - 22);
+  parts.push(`<rect x="${f(x2 - 70)}" y="${f(ty)}" width="64" height="16" rx="4" fill="#f2d600" pointer-events="none"/>`);
+  parts.push(`<text x="${f(x2 - 38)}" y="${f(ty + 8)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-weight="800" font-size="11" fill="#1d2126" pointer-events="none">${tag}</text>`);
+  return parts.join('');
+}
+
+function splitCols(x1, x2, n, gap) {
+  const cols = [], w = (x2 - x1 - gap * (n - 1)) / n;
+  for (let i = 0; i < n; i++) cols.push([x1 + i * (w + gap), x1 + i * (w + gap) + w]);
+  return cols;
+}
+
+function basketShapes(it, x1, x2, y1, y2, u) {
+  const n = clamp(it.count | 0 || 1, 1, 8);
+  const gap = it.separator && n > 1 ? 6 : 2;
+  const p = [];
+  const h = y2 - y1;
+  for (const [a, b] of splitCols(x1 + 2, x2 - 2, n, gap)) {
+    const w = b - a;
+    p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(w)}" height="${f(h)}" fill="#f1f3f5" fill-opacity="0.9" stroke="#8b9097" stroke-width="1.4" rx="1.5"/>`);
+    // rejilla: verticales finas
+    const vx = Math.max(3, Math.min(6, w / 40));
+    let d = '';
+    for (let x = a + vx; x < b - 1; x += vx) d += `M${f(x)} ${f(y1 + 1)}V${f(y2 - 1)}`;
+    p.push(`<path d="${d}" stroke="#b9bec5" stroke-width="0.6" fill="none"/>`);
+    // horizontales (alambres principales)
+    const rows = Math.max(2, Math.round(h / (u * 0.9)));
+    let dh = '';
+    for (let k = 1; k < rows; k++) { const y = y1 + h * k / rows; dh += `M${f(a)} ${f(y)}H${f(b)}`; }
+    p.push(`<path d="${dh}" stroke="#9aa0a7" stroke-width="1" fill="none"/>`);
+    // divisiones verticales del canasto
+    for (const fx of [1 / 3, 2 / 3]) p.push(`<line x1="${f(a + w * fx)}" y1="${f(y1)}" x2="${f(a + w * fx)}" y2="${f(y2)}" stroke="#8b9097" stroke-width="1.2"/>`);
+    p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(w)}" height="${f(Math.max(1.5, u * 0.18))}" fill="#9aa0a7"/>`);
+  }
+  if (it.separator && n > 1) {
+    for (const [a] of splitCols(x1 + 2, x2 - 2, n, gap).slice(1)) {
+      p.push(`<rect x="${f(a - gap + 1)}" y="${f(y1 - u * 0.2)}" width="${f(gap - 2)}" height="${f(h + u * 0.2)}" fill="#7d8188"/>`);
+    }
+  }
+  return p.join('');
+}
+
+function cartShapes(it, x1, x2, y1, y2, u) {
+  const n = clamp(it.count | 0 || 1, 1, 6);
+  const p = [];
+  const h = y2 - y1;
+  const wr = Math.max(3, Math.min(h * 0.12, u * 0.9));
+  for (const [a0, b0] of splitCols(x1 + 4, x2 - 4, n, 10)) {
+    const a = a0, b = b0, w = b - a;
+    const bodyTop = y1 + h * 0.16, bodyBot = y2 - wr * 2.2;
+    // asa
+    p.push(`<path d="M${f(a + w * 0.12)} ${f(bodyTop)}V${f(y1 + 1)}H${f(b - w * 0.12)}V${f(bodyTop)}" stroke="#3a3d42" stroke-width="${f(Math.max(1.5, u * 0.18))}" fill="none"/>`);
+    // cuerpo
+    p.push(`<rect x="${f(a)}" y="${f(bodyTop)}" width="${f(w)}" height="${f(bodyBot - bodyTop)}" rx="3" fill="#6b7f99" stroke="#3a3d42" stroke-width="1.2"/>`);
+    // bandejas internas
+    const shelves = Math.max(1, Math.round((bodyBot - bodyTop) / (u * 2.5)));
+    for (let k = 1; k <= shelves; k++) {
+      const y = bodyTop + (bodyBot - bodyTop) * k / (shelves + 1);
+      p.push(`<line x1="${f(a + 3)}" y1="${f(y)}" x2="${f(b - 3)}" y2="${f(y)}" stroke="#4d5d73" stroke-width="1.4"/>`);
+    }
+    // base y ruedas
+    p.push(`<rect x="${f(a + 2)}" y="${f(bodyBot)}" width="${f(w - 4)}" height="${f(wr * 0.5)}" fill="#2b2e33"/>`);
+    for (const cx of [a + w * 0.15, b - w * 0.15]) {
+      p.push(`<circle cx="${f(cx)}" cy="${f(y2 - wr)}" r="${f(wr)}" fill="#1d2126"/>`);
+      p.push(`<circle cx="${f(cx)}" cy="${f(y2 - wr)}" r="${f(wr * 0.4)}" fill="#9aa0a7"/>`);
+    }
+  }
+  return p.join('');
+}
+
+function boardShapes(it, x1, x2, y1, y2, u) {
+  const n = clamp(it.count | 0 || 1, 1, 8);
+  const color = /^#[0-9a-fA-F]{6}$/.test(it.color || '') ? it.color : '#1f5f8b';
+  const p = [];
+  // en número par, dos grupos con pasillo central
+  const groups = n % 2 === 0 && n > 1 ? [n / 2, n / 2] : [n];
+  const centerGap = groups.length === 2 ? (x2 - x1) * 0.07 : 0;
+  const gw = (x2 - x1 - centerGap) / groups.length;
+  groups.forEach((cnt, gi) => {
+    const ga = x1 + gi * (gw + centerGap);
+    for (const [a, b] of splitCols(ga, ga + gw, cnt, 3)) {
+      p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(b - a)}" height="${f(y2 - y1)}" fill="${color}" stroke="#0e2f46" stroke-opacity="0.5" stroke-width="1"/>`);
+      p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f((b - a) * 0.06)}" height="${f(y2 - y1)}" fill="#ffffff" fill-opacity="0.12"/>`);
+    }
+  });
+  return p.join('');
+}
+
 function panelSVG(it, g, interactive) {
   const u = g.u;
   const y1 = g.slotTop(it.top), y2 = g.slotTop(it.bottom) + u;
@@ -512,17 +682,7 @@ function panelSVG(it, g, interactive) {
       }
     }
   }
-  if (interactive && !isPrev) {
-    const hh = Math.max(8, u * 0.7);
-    parts.push(`<rect data-handle="top" x="${f(x1)}" y="${f(y1 - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
-    parts.push(`<rect data-handle="bottom" x="${f(x1)}" y="${f(y2 - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
-    if (isSel) {
-      for (const yy of [y1, y2]) parts.push(`<rect x="${f(mid - 18)}" y="${f(yy - 4)}" width="36" height="8" rx="4" fill="#f2d600" stroke="#1d2126" stroke-width="1" pointer-events="none"/>`);
-    }
-    const tag = `${it.top} – ${it.bottom}`;
-    parts.push(`<rect x="${f(x2 - 70)}" y="${f(y2 - 22)}" width="64" height="16" rx="4" fill="#f2d600" pointer-events="none"/>`);
-    parts.push(`<text x="${f(x2 - 38)}" y="${f(y2 - 14)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-weight="800" font-size="11" fill="#1d2126" pointer-events="none">${tag}</text>`);
-  }
+  parts.push(rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2));
   parts.push('</g>');
   return parts.join('');
 }
@@ -573,9 +733,9 @@ function showTip(text, bad) {
 /* ---------- Paleta ---------- */
 const palette = document.getElementById('palette');
 function buildPalette() {
-  const items = [...TYPE_ORDER.map(k => ({ kind: 'beam', type: k })), { kind: 'panel' }];
+  const items = [...TYPE_ORDER.map(k => ({ kind: 'beam', type: k })), ...KIND_ORDER.map(k => ({ kind: k }))];
   palette.innerHTML = items.map(p => {
-    if (p.kind === 'panel') return `<div class="pal-item" data-kind="panel"><div class="pal-swatch panel"></div><div><b>Panel</b><small>con barras de ganchos</small></div></div>`;
+    if (p.kind !== 'beam') { const K = KINDS[p.kind]; return `<div class="pal-item" data-kind="${p.kind}"><div class="pal-swatch ${p.kind}"></div><div><b>${esc(K.name)}</b><small>${esc(K.sub)}</small></div></div>`; }
     const t = TYPES[p.type];
     return `<div class="pal-item" data-kind="beam" data-type="${p.type}"><div class="pal-swatch" style="height:${t.cm === 10 ? 14 : 10}px"></div><div><b>${esc(t.short)}</b><small>${t.cm} cm · ${t.slots} perf.</small></div></div>`;
   }).join('');
@@ -598,9 +758,8 @@ function makePreview(kind, type, v) {
     const pos = clamp(Math.round(v + t.slots / 2), t.slots, S.N);
     return { id: -1, kind, type, pos, invalid: !canPlaceBeam(type, pos) };
   }
-  const h = Math.min(PANEL_DEFAULT_H, S.N) - 1;
-  const top = clamp(Math.round(v + h / 2), h + 1, S.N);
-  return { id: -1, kind: 'panel', top, bottom: top - h, bars: 3, spacing: 3.7, invalid: false };
+  const h = Math.min(KINDS[kind].h, maxTop(kind)) - 1;
+  return { ...newRangeItem(kind, Math.round(v + h / 2)), invalid: false };
 }
 
 function quickAdd(kind, type) {
@@ -611,9 +770,9 @@ function quickAdd(kind, type) {
     if (pos == null) { flash('No hay espacio libre para esa viga.', true); return; }
     it = { id: nextId++, kind, type, pos };
   } else {
-    const h = Math.min(PANEL_DEFAULT_H, S.N) - 1;
-    const top = clamp(Math.round(S.N / 2 + h / 2), h + 1, S.N);
-    it = { id: nextId++, kind: 'panel', top, bottom: top - h, bars: 3, spacing: 3.7 };
+    const h = KINDS[kind].h - 1;
+    const top = kind === 'cart' ? h + 1 : kind === 'board' ? maxTop(kind) : Math.round(S.N / 2 + h / 2);
+    it = { ...newRangeItem(kind, top), id: nextId++ };
   }
   S.items.push(it); sel = it.id;
   pushHistory(before); save(); render(true);
@@ -635,7 +794,7 @@ svg.addEventListener('pointerdown', e => {
   const it = byId(id);
   if (!it) return;
   const hEl = e.target.closest('[data-handle]');
-  const handle = it.kind === 'panel' && hEl ? hEl.dataset.handle : 'move';
+  const handle = it.kind !== 'beam' && hEl ? hEl.dataset.handle : 'move';
   const v = lastGeo.vFromY(svgPoint(e).y);
   let offset;
   if (it.kind === 'beam') offset = it.pos - v;
@@ -659,10 +818,10 @@ window.addEventListener('pointermove', e => {
       drag.invalid = !canPlaceBeam(it.type, it.pos, it.id);
     } else if (drag.handle === 'move') {
       const h = drag.orig.top - drag.orig.bottom;
-      const top = clamp(Math.round(v + drag.offset), h + 1, S.N);
+      const top = clamp(Math.round(v + drag.offset), h + 1, maxTop(it.kind));
       if (top !== it.top) { it.top = top; it.bottom = top - h; drag.changed = true; }
     } else if (drag.handle === 'top') {
-      const top = clamp(Math.round(v + drag.offset), it.bottom, S.N);
+      const top = clamp(Math.round(v + drag.offset), it.bottom, maxTop(it.kind));
       if (top !== it.top) { it.top = top; drag.changed = true; }
     } else {
       const bottom = clamp(Math.round(v + drag.offset) + 1, 1, it.top);
@@ -670,7 +829,7 @@ window.addEventListener('pointermove', e => {
     }
     if (drag.removing) showTip('Suelta para eliminar', true);
     else if (drag.invalid) showTip('Choca con otra viga', true);
-    else showTip(it.kind === 'beam' ? `Perforación ${it.pos}` : `Panel ${it.top} – ${it.bottom}`);
+    else showTip(it.kind === 'beam' ? `Perforación ${it.pos}` : `${KINDS[it.kind].name} ${it.top} – ${it.bottom}`);
     render();
     return;
   }
@@ -680,7 +839,7 @@ window.addEventListener('pointermove', e => {
       pdrag.moved = true;
       const gh = document.createElement('div');
       gh.className = 'ghost';
-      gh.textContent = pdrag.kind === 'panel' ? 'Panel' : TYPES[pdrag.type].short;
+      gh.textContent = pdrag.kind === 'beam' ? TYPES[pdrag.type].short : KINDS[pdrag.kind].name;
       document.body.appendChild(gh);
       pdrag.ghost = gh;
     }
@@ -691,7 +850,7 @@ window.addEventListener('pointermove', e => {
       preview = makePreview(pdrag.kind, pdrag.type, v);
       pdrag.ghost.style.display = 'none';
       if (preview.invalid) showTip('Choca con otra viga', true);
-      else showTip(preview.kind === 'beam' ? `Perforación ${preview.pos}` : `Panel ${preview.top} – ${preview.bottom}`);
+      else showTip(preview.kind === 'beam' ? `Perforación ${preview.pos}` : `${KINDS[preview.kind].name} ${preview.top} – ${preview.bottom}`);
     } else {
       preview = null;
       pdrag.ghost.style.display = '';
@@ -770,7 +929,7 @@ function moveBy(it, d) {
     it.pos = pos;
   } else {
     const h = it.top - it.bottom;
-    const top = clamp(it.top + d, h + 1, S.N);
+    const top = clamp(it.top + d, h + 1, maxTop(it.kind));
     if (top === it.top) return;
     it.top = top; it.bottom = top - h;
   }
@@ -792,7 +951,10 @@ function renderProps(force) {
   if (!force && key === propsKey) {
     // solo sincronizar valores sin destruir el foco
     propsEl.querySelectorAll('[data-prop]').forEach(inp => {
-      if (inp !== document.activeElement && it) inp.value = it[inp.dataset.prop];
+      if (inp !== document.activeElement && it) {
+        if (inp.type === 'checkbox') inp.checked = !!it[inp.dataset.prop];
+        else inp.value = it[inp.dataset.prop];
+      }
     });
     return;
   }
@@ -816,18 +978,30 @@ function renderProps(force) {
       </div>
       <div class="row" style="margin-top:8px"><button class="danger" data-act="del">Eliminar viga</button></div>`;
   } else {
-    propsEl.innerHTML = `
-      <div class="fields">
-        <label>Arriba (perf.) <input data-prop="top" type="number" min="1" max="${S.N}" step="1" value="${it.top}"></label>
-        <label>Abajo (perf.) <input data-prop="bottom" type="number" min="1" max="${S.N}" step="1" value="${it.bottom}"></label>
+    const K = KINDS[it.kind];
+    let extra = '';
+    if (it.kind === 'panel') extra = `
         <label>Barras de ganchos <input data-prop="bars" type="number" min="0" max="12" step="1" value="${it.bars}"></label>
-        <label>Separación (perf.) <input data-prop="spacing" type="number" min="0.5" max="20" step="0.1" value="${it.spacing}"></label>
+        <label>Separación (perf.) <input data-prop="spacing" type="number" min="0.5" max="20" step="0.1" value="${it.spacing}"></label>`;
+    if (it.kind === 'basket') extra = `
+        <label>Canastos por nivel <input data-prop="count" type="number" min="1" max="8" step="1" value="${it.count}"></label>
+        <label class="check" style="flex-direction:row;align-self:end"><input data-prop="separator" type="checkbox"${it.separator ? ' checked' : ''}> Separador</label>`;
+    if (it.kind === 'cart') extra = `
+        <label>Cantidad <input data-prop="count" type="number" min="1" max="6" step="1" value="${it.count}"></label>`;
+    if (it.kind === 'board') extra = `
+        <label>Paneles <input data-prop="count" type="number" min="1" max="8" step="1" value="${it.count}"></label>
+        <label>Color <input data-prop="color" type="color" value="${esc(it.color)}" style="height:34px;padding:2px"></label>`;
+    propsEl.innerHTML = `
+      <p style="margin:0 0 8px;font-weight:700">${esc(K.name)}</p>
+      <div class="fields">
+        <label>Arriba (perf.) <input data-prop="top" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.top}"></label>
+        <label>Abajo (perf.) <input data-prop="bottom" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.bottom}"></label>${extra}
       </div>
-      <p class="note">Arrastra el borde superior o inferior del panel para cambiar su alto.</p>
+      <p class="note">Arrastra el borde superior o inferior para cambiar el alto.${it.kind === 'board' ? ' El casetón puede sobresalir del rack.' : ''}</p>
       <div class="row" style="margin-top:4px">
         <button data-act="up">▲ Subir</button><button data-act="down">▼ Bajar</button>
       </div>
-      <div class="row" style="margin-top:8px"><button class="danger" data-act="del">Eliminar panel</button></div>`;
+      <div class="row" style="margin-top:8px"><button class="danger" data-act="del">Eliminar</button></div>`;
   }
 }
 let propBefore = null;
@@ -850,10 +1024,13 @@ propsEl.addEventListener('change', e => {
       it.pos = pos;
     }
   } else {
-    if (prop === 'top') it.top = clamp(Math.round(+raw || 0), it.bottom, S.N);
+    if (prop === 'top') it.top = clamp(Math.round(+raw || 0), it.bottom, maxTop(it.kind));
     if (prop === 'bottom') it.bottom = clamp(Math.round(+raw || 0), 1, it.top);
     if (prop === 'bars') it.bars = clamp(Math.round(+raw || 0), 0, 12);
     if (prop === 'spacing') it.spacing = clamp(+raw || 3.7, 0.5, 20);
+    if (prop === 'count') it.count = clamp(Math.round(+raw || 1), 1, 8);
+    if (prop === 'separator') it.separator = e.target.checked;
+    if (prop === 'color' && /^#[0-9a-fA-F]{6}$/.test(raw)) it.color = raw;
   }
   pushHistory(before); save(); render(true);
 });
@@ -880,7 +1057,22 @@ function summaryRows() {
       n, total: (n * per + extra) * bays,
       detail: extra ? `${extra * bays} trasera${extra * bays === 1 ? '' : 's'} para el panel` : '',
     };
-  }).filter(r => r.n || r.total);
+  }).filter(r => r.n || r.total).concat(extraRows(bays));
+}
+function extraRows(bays) {
+  const rows = [];
+  const baskets = ofKind('basket');
+  if (baskets.length) {
+    const n = baskets.reduce((s, b) => s + (b.count | 0), 0);
+    rows.push({ name: 'Canasto apilable 120x30x10x50 (R22)', n, total: n * bays, detail: `${baskets.length} nivel${baskets.length === 1 ? '' : 'es'}` });
+    const sep = baskets.reduce((s, b) => s + (b.separator ? Math.max(0, (b.count | 0) - 1) : 0), 0);
+    if (sep) rows.push({ name: 'Separador de canasto 30x10x50 (R22)', n: sep, total: sep * bays, detail: '' });
+  }
+  const carts = ofKind('cart').reduce((s, c) => s + (c.count | 0), 0);
+  if (carts) rows.push({ name: 'Carrito con ruedas', n: carts, total: carts * bays, detail: '' });
+  const boards = ofKind('board').reduce((s, c) => s + (c.count | 0), 0);
+  if (boards) rows.push({ name: 'Casetón (paneles)', n: boards, total: boards * bays, detail: '' });
+  return rows;
 }
 function renderSummary() {
   const rows = summaryRows();
@@ -929,19 +1121,30 @@ bindInput(document.getElementById('inpRange'), e => {
     // reubicar piezas que quedan fuera
     for (const it of S.items) {
       if (it.kind === 'beam') it.pos = clamp(it.pos, TYPES[it.type].slots, n);
-      else { it.top = clamp(it.top, 1, n); it.bottom = clamp(it.bottom, 1, it.top); }
+      else { it.top = clamp(it.top, 1, n + (KINDS[it.kind].overflow || 0)); it.bottom = clamp(it.bottom, 1, it.top); }
     }
     el.value = n;
     pushHistory(before); save(); render(true);
   });
 })();
 
+document.querySelectorAll('[data-model]').forEach(btn => btn.addEventListener('click', () => {
+  const n = +btn.dataset.model;
+  const before = snapshot();
+  S.N = 48;
+  S.items = modelItems(n);
+  Object.assign(S.meta, MODEL_META[n]);
+  nextId = Math.max(...S.items.map(i => i.id)) + 1;
+  sel = null;
+  pushHistory(before); syncInputs(); save(); render(true);
+  flash('Modelo cargado. Ctrl+Z para volver.');
+}));
 document.getElementById('btnUndo').onclick = undo;
 document.getElementById('btnRedo').onclick = redo;
 document.getElementById('btnReset').onclick = () => {
   if (!confirm('¿Volver al rack de ejemplo? Se puede deshacer con Ctrl+Z.')) return;
   const before = snapshot();
-  S = defaultState(); nextId = 8; sel = null;
+  S = defaultState(); nextId = Math.max(...S.items.map(i => i.id)) + 1; sel = null;
   pushHistory(before); syncInputs(); save(); render(true);
 };
 
