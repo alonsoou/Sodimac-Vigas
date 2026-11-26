@@ -6,8 +6,8 @@ App web de una sola página para armar el plano de vigas de un rack arrastrando 
 
 Abre `index.html` en Chrome o Edge (doble clic). No necesita instalación ni internet: la librería de Excel está en `vendor/`.
 
-- **Agregar**: arrastra una pieza al rack, o tócala para ponerla en el primer espacio libre. Piezas: vigas (Inicio 10, Viga 7, Viga 10, Término 10), panel con ganchos, charola con rejilla (canasto apilable), carrito con ruedas y casetón (paneles que pueden sobresalir del rack).
-- **Modelos de ejemplo**: carga "Panel ganchos" o "Canastos + casetón" como punto de partida.
+- **Agregar**: arrastra una pieza al rack, o tócala para ponerla en el primer espacio libre. Piezas: vigas (Inicio 10, Viga 7, Viga 10, Término 10), panel con ganchos, charola con rejilla (canasto apilable), canasto con ruedas (al piso), carrito con ruedas, tarima y casetón (paneles que pueden sobresalir del rack).
+- **Modelos de ejemplo**: carga "Panel ganchos", "Canastos + casetón" o "Canasto con ruedas" (rack 61/365/122) como punto de partida.
 - **Mover**: arrastra la viga. Se ajusta a las perforaciones (los números azules de 1 a 48). El número amarillo indica la perforación donde está la viga.
 - **Panel, charola, carrito, casetón**: arrástralos para moverlos; arrastra su borde superior o inferior para cambiar el alto. En "Selección" se cambian barras de ganchos, canastos por nivel, separador, cantidad de carritos, número de paneles y color del casetón.
 - **Eliminar**: arrastra la pieza fuera del rack, o selecciónala y pulsa `Supr`.
