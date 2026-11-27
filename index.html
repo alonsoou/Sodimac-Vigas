@@ -215,7 +215,7 @@
     </section>
     <section class="sec-pal">
       <h2>Vigas traseras</h2>
-      <p class="hint">Iguales a las vigas, se dibujan al 70% de opacidad.</p>
+      <p class="hint">Viga de término 10, dibujada al 70% de opacidad.</p>
       <div class="palette" id="paletteRear"></div>
     </section>
     <section class="sec-pal">
@@ -327,7 +327,7 @@ const KINDS = {
   panel:  { name: 'Panel con gancheras', sub: 'barras de ganchos',      h: 12, defaults: { bars: 3, spacing: 3.7, hooks: 10 } },
   basket: { name: 'Charola con rejilla', sub: 'canasto apilable',      h: 4,  defaults: { count: 2, separator: true } },
   cart:   { name: 'Carrito con ruedas',  sub: 'carro móvil',           h: 7,  defaults: { count: 2 } },
-  board:  { name: 'Frente',              sub: 'puede sobresalir del rack', h: 24, defaults: { color: '#1f5f8b', l: 0, r: 100 }, overflow: 8, wide: true },
+  board:  { name: 'Frente',              sub: 'va detrás de los aditamentos', h: 24, defaults: { color: '#1f5f8b', l: 0, r: 100 }, wide: true },
   wbasket:{ name: 'Canasto con ruedas',  sub: '120 x 70 x 60, al piso',  h: 11, defaults: { count: 2, seps: 3 }, floor: true },
   pallet: { name: 'Viga + tarima',       sub: 'tarima sobre viga con brazos', h: 2, defaults: {} },
   tray:   { name: 'Charola lisa',        sub: 'repisa metálica',          h: 2, defaults: { count: 2 } },
@@ -335,8 +335,7 @@ const KINDS = {
   hbasket:{ name: 'Canastilla colgante', sub: 'cuelga de la viga',        h: 5, defaults: { count: 3 } },
 };
 const KIND_ORDER = ['panel', 'basket', 'tray', 'dtray', 'hbasket', 'wbasket', 'cart', 'pallet', 'board'];
-const HEADROOM = 8;  // perforaciones extra sobre el rack cuando hay casetones
-const maxTop = kind => S.N + (KINDS[kind] && KINDS[kind].overflow || 0);
+const maxTop = () => S.N;  // ninguna pieza sale del rack
 const NEW_COL_WIDTH = 13;   // ancho de columna (caracteres) en Excel nuevo
 const NEW_ROW_HEIGHT = 15;  // alto de fila (pt) en Excel nuevo
 const STORE_KEY = 'editorVigas.v1';
@@ -368,6 +367,16 @@ let lastGeo = null;
 let undoStack = [], redoStack = [];
 const tpl = { buf: null, name: '', sheets: [], boxes: {}, sheet: null };
 
+// Ajusta dibujos guardados con reglas anteriores (frente fuera del rack, traseras de otro tipo)
+function normalizeItem(it, N) {
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));   // se usa antes de declarar el clamp global
+  if (it.kind === 'board') {
+    it.top = clamp(it.top, 1, N); it.bottom = clamp(it.bottom, 1, it.top);
+    it.l = clamp(it.l ?? 0, 0, 90); it.r = clamp(it.r ?? 100, it.l + 10, 100);
+  }
+  if (it.kind === 'beam' && it.rear && it.type !== 'termino') it.type = 'termino';
+  return it;
+}
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
@@ -375,7 +384,8 @@ function load() {
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.items)) return null;
     const d = defaultState();
-    return { N: s.N || d.N, meta: { ...d.meta, ...s.meta }, opts: { ...d.opts, ...s.opts }, items: s.items };
+    const N = s.N || d.N;
+    return { N, meta: { ...d.meta, ...s.meta }, opts: { ...d.opts, ...s.opts }, items: s.items.map(it => normalizeItem(it, N)) };
   } catch (e) { return null; }
 }
 function save() {
@@ -505,7 +515,7 @@ function geometry(W, H, N, withTable, extra) {
 function buildSVG(W, H, interactive) {
   const N = S.N;
   const items = preview ? [...S.items, preview] : S.items;
-  const g = geometry(W, H, N, S.opts.table, items.some(i => i.kind === 'board') ? HEADROOM : 0);
+  const g = geometry(W, H, N, S.opts.table, 0);
   const out = [];
   const u = g.u;
 
@@ -542,12 +552,14 @@ function buildSVG(W, H, interactive) {
 
   // Vigas traseras (detrás de todo, al 70%)
   for (const it of items.filter(i => i.kind === 'beam' && i.rear)) out.push(beamSVG(it, g, interactive));
+  // Frentes: detrás de cualquier aditamento
+  for (const it of items.filter(i => i.kind === 'board')) out.push(rangeSVG(it, g, interactive));
   // Paneles (detrás de las vigas delanteras)
   for (const it of items.filter(i => i.kind === 'panel')) out.push(panelSVG(it, g, interactive));
   // Vigas delanteras
   for (const it of items.filter(i => i.kind === 'beam' && !i.rear)) out.push(beamSVG(it, g, interactive));
   // Piezas delante de las vigas
-  for (const k of ['pallet', 'tray', 'dtray', 'hbasket', 'basket', 'wbasket', 'cart', 'board']) {
+  for (const k of ['pallet', 'tray', 'dtray', 'hbasket', 'basket', 'wbasket', 'cart']) {
     for (const it of items.filter(i => i.kind === k)) out.push(rangeSVG(it, g, interactive));
   }
 
@@ -924,7 +936,7 @@ function buildPalette() {
     const t = TYPES[k];
     return `<div class="pal-item" data-kind="beam" data-type="${k}"><div class="pal-swatch beam" style="height:${t.cm === 10 ? 14 : 10}px"></div><div><b>${esc(t.short)}</b><small>${t.cm} cm · ${t.slots} perf.</small></div></div>`;
   }).join('');
-  document.getElementById('paletteRear').innerHTML = TYPE_ORDER.map(k => {
+  document.getElementById('paletteRear').innerHTML = ['termino'].map(k => {
     const t = TYPES[k];
     return `<div class="pal-item" data-kind="beam" data-type="${k}" data-rear="1"><div class="pal-swatch beam rear" style="height:${t.cm === 10 ? 14 : 10}px"></div><div><b>${esc(t.short)} trasera</b><small>${t.cm} cm · ${t.slots} perf.</small></div></div>`;
   }).join('');
@@ -942,7 +954,7 @@ function svgPoint(e) {
 }
 // posición horizontal como % del ancho interior del rack
 function xPct(x) { return (x - lastGeo.innerL) / (lastGeo.innerR - lastGeo.innerL) * 100; }
-const X_MIN = -12, X_MAX = 112, X_MIN_W = 10;
+const X_MIN = 0, X_MAX = 100, X_MIN_W = 10;   // el frente no sale de los parantes
 
 function insideRack(e) {
   const r = svg.getBoundingClientRect();
@@ -1012,7 +1024,7 @@ window.addEventListener('pointermove', e => {
     const ptm = svgPoint(e);
     const v = lastGeo.vFromY(ptm.y);
     const dx = Math.round(xPct(ptm.x) - drag.fx0);
-    drag.removing = !insideRack(e);
+    drag.removing = drag.handle === 'move' && !insideRack(e);   // estirar un asa nunca elimina
     if (it.kind === 'beam') {
       const t = TYPES[it.type];
       const pos = clamp(Math.round(v + drag.offset), t.slots, S.N);
@@ -1182,11 +1194,11 @@ function renderProps(force) {
     propsEl.innerHTML = `
       <div class="fields">
         <label class="full">Tipo
-          <select data-prop="type">${TYPE_ORDER.map(k => `<option value="${k}"${k === it.type ? ' selected' : ''}>${esc(TYPES[k].name)}</option>`).join('')}</select>
+          <select data-prop="type"${it.rear ? ' disabled title="Las vigas traseras son siempre de término 10"' : ''}>${TYPE_ORDER.map(k => `<option value="${k}"${k === it.type ? ' selected' : ''}>${esc(TYPES[k].name)}</option>`).join('')}</select>
         </label>
         <label>Perforación <input data-prop="pos" type="number" min="${t.slots}" max="${S.N}" step="1" value="${it.pos}"></label>
         <label>Ocupa <input value="${it.pos - t.slots + 1 === it.pos ? it.pos : (it.pos - t.slots + 1) + ' – ' + it.pos}" disabled></label>
-        <label class="check full" style="flex-direction:row"><input data-prop="rear" type="checkbox"${it.rear ? ' checked' : ''}> Viga trasera (70% opacidad)</label>
+        ${it.type === 'termino' ? `<label class="check full" style="flex-direction:row"><input data-prop="rear" type="checkbox"${it.rear ? ' checked' : ''}> Viga trasera (70% opacidad)</label>` : ''}
       </div>
       <div class="row" style="margin-top:10px">
         <button data-act="up">▲ Subir</button><button data-act="down">▼ Bajar</button>
@@ -1222,7 +1234,7 @@ function renderProps(force) {
         <label>Arriba (perf.) <input data-prop="top" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.top}"></label>
         <label>Abajo (perf.) <input data-prop="bottom" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.bottom}"></label>${extra}
       </div>
-      <p class="note">${it.kind === 'board' ? 'Arrastra las asas de los bordes para cambiar alto y ancho. Puede sobresalir del rack. 0% – 100% es el ancho entre parantes.' : 'Arrastra el borde superior o inferior para cambiar el alto.'}</p>
+      <p class="note">${it.kind === 'board' ? 'Arrastra las asas de los bordes para cambiar alto y ancho. Siempre queda dentro del rack y detrás de los aditamentos. 0% – 100% es el ancho entre parantes.' : 'Arrastra el borde superior o inferior para cambiar el alto.'}</p>
       <div class="row" style="margin-top:4px">
         <button data-act="up">▲ Subir</button><button data-act="down">▼ Bajar</button>
       </div>
@@ -1406,7 +1418,7 @@ bindInput(document.getElementById('inpRange'), e => {
     // reubicar piezas que quedan fuera
     for (const it of S.items) {
       if (it.kind === 'beam') it.pos = clamp(it.pos, TYPES[it.type].slots, n);
-      else { it.top = clamp(it.top, 1, n + (KINDS[it.kind].overflow || 0)); it.bottom = clamp(it.bottom, 1, it.top); }
+      else { it.top = clamp(it.top, 1, n); it.bottom = clamp(it.bottom, 1, it.top); }
     }
     el.value = n;
     pushHistory(before); save(); render(true);
