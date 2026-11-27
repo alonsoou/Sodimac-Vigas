@@ -8,7 +8,7 @@ Abre `index.html` en Chrome o Edge (doble clic). No necesita instalación ni int
 
 - **Agregar**: arrastra una pieza al rack, o tócala para ponerla en el primer espacio libre. Piezas: vigas (Inicio 10, Viga 7, Viga 10, Término 10), panel con ganchos, charola con rejilla (canasto apilable), canasto con ruedas (al piso), carrito con ruedas, viga + tarima y casetón (paneles que pueden sobresalir del rack).
 - **Viga Default**: botón que carga el modelo base (rack 61/365/122 con canasto con ruedas) como punto de partida.
-- **Logo**: coloca un archivo `logo.png` junto a `index.html` y aparece en el encabezado.
+- **Logo**: el encabezado muestra `logo.svg`; reemplaza ese archivo para cambiarlo.
 - **Mover**: arrastra la viga. Se ajusta a las perforaciones (los números azules de 1 a 48). El número amarillo indica la perforación donde está la viga.
 - **Panel, charola, carrito, casetón**: arrástralos para moverlos; arrastra su borde superior o inferior para cambiar el alto. En "Selección" se cambian barras de ganchos, canastos por nivel, separador, cantidad de carritos, número de paneles y color del casetón.
 - **Eliminar**: arrastra la pieza fuera del rack, o selecciónala y pulsa `Supr`.

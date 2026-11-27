@@ -32,7 +32,7 @@
   }
   header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
   .brand { display: flex; align-items: center; gap: 12px; }
-  .brand img { height: 30px; width: auto; display: block; background: #fff; border-radius: 4px; padding: 2px 6px; }
+  .brand img { height: 30px; width: auto; display: block; background: #fff; border-radius: 4px; padding: 5px 8px; box-sizing: border-box; }
   .brand-sep { color: #8b9097; font-size: 22px; font-weight: 300; line-height: 1; }
   .brand.nologo img, .brand.nologo .brand-sep { display: none; }
   header .spacer { flex: 1; }
@@ -166,7 +166,7 @@
 <body>
 <header>
   <div class="brand">
-    <img id="logo" src="logo.png" alt="Logo" onerror="this.parentNode.classList.add('nologo')">
+    <img id="logo" src="logo.svg" alt="Sodimac" onerror="this.parentNode.classList.add('nologo')">
     <span class="brand-sep" aria-hidden="true">|</span>
     <h1>Constructor de vigas</h1>
   </div>
