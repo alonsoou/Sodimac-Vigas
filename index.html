@@ -100,6 +100,14 @@
   .pal-swatch.dtray { height: 22px; background: linear-gradient(#c3c7cc, #c3c7cc) bottom/100% 35% no-repeat, repeating-linear-gradient(90deg, transparent 0 9px, #8b9097 9px 11px); border-bottom: 1px solid #6b6f75; }
   .pal-swatch.hbasket { height: 24px; background: linear-gradient(90deg, transparent 18%, #8b9097 18% 21%, transparent 21% 79%, #8b9097 79% 82%, transparent 82%) top/100% 35% no-repeat, repeating-linear-gradient(90deg, #b3b8be 0 1px, #eceef1 1px 4px) bottom/100% 65% no-repeat; }
   .pal-swatch.rear { opacity: .7; }
+  .pal-swatch.fondo { height: 30px; background: linear-gradient(135deg, #1f5f8b 0 33%, #c62828 33% 66%, #f2c200 66%); border: 1px solid var(--line); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; }
+  .swatches button { width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid var(--line); }
+  .swatches button.on { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .layers { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+  .layers button { text-align: left; font-weight: 500; padding: 6px 8px; display: flex; justify-content: space-between; gap: 8px; }
+  .layers button.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  .layers small { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pal-swatch.pallet { height: 14px; background: linear-gradient(#9a6a3a, #9a6a3a) top/100% 30% no-repeat, linear-gradient(var(--rack-beam), var(--rack-beam)) bottom/100% 60% no-repeat; }
   .stepper { display: flex; align-items: stretch; gap: 0; margin-top: 2px; }
   .stepper button { width: 44px; flex: none; font-size: 20px; line-height: 1; padding: 6px 0; border-radius: 7px 0 0 7px; }
@@ -265,6 +273,11 @@
       <div id="props"></div>
     </section>
     <section>
+      <h2>Piezas en el rack</h2>
+      <p class="hint">Toca una para seleccionarla, aunque esté detrás de otra.</p>
+      <div class="layers" id="layers"></div>
+    </section>
+    <section>
       <h2>Resumen de accesorios</h2>
       <table class="sum">
         <thead><tr><th>Accesorio</th><th>Dibujo</th><th>Total</th></tr></thead>
@@ -328,6 +341,7 @@ const KINDS = {
   basket: { name: 'Charola con rejilla', sub: 'canasto apilable',      h: 4,  defaults: { count: 2, separator: true },
             palName: 'Charola', palSub: 'con rejilla, lisa o con divisores' },
   cart:   { name: 'Carrito con ruedas',  sub: 'carro móvil',           h: 7,  defaults: { count: 2 } },
+  fondo:  { name: 'Fondo',               sub: 'color a elegir, detrás de todo', h: 46, defaults: { color: '#d9dde2', l: 0, r: 100 }, wide: true },
   board:  { name: 'Frente',              sub: 'va detrás de los aditamentos', h: 24, defaults: { color: '#1f5f8b', l: 0, r: 100 }, wide: true },
   wbasket:{ name: 'Canasto con ruedas',  sub: '120 x 70 x 60, al piso',  h: 11, defaults: { count: 2, seps: 3 }, floor: true },
   pallet: { name: 'Viga + tarima',       sub: 'tarima sobre viga con brazos', h: 2, defaults: {} },
@@ -335,7 +349,11 @@ const KINDS = {
   dtray:  { name: 'Charola con divisores', sub: 'divisores de alambre',   h: 4, defaults: { count: 2, dividers: 4 } },
   hbasket:{ name: 'Canastilla colgante', sub: 'cuelga de la viga',        h: 5, defaults: { count: 3 } },
 };
-const KIND_ORDER = ['panel', 'basket', 'hbasket', 'wbasket', 'cart', 'pallet', 'board'];
+const KIND_ORDER = ['panel', 'basket', 'hbasket', 'wbasket', 'cart', 'pallet', 'board', 'fondo'];
+const COLOR_PRESETS = [
+  ['#ffffff', 'Blanco'], ['#d9dde2', 'Gris claro'], ['#4a4e54', 'Gris oscuro'], ['#1d2126', 'Negro'],
+  ['#1f5f8b', 'Azul'], ['#c62828', 'Rojo'], ['#f2c200', 'Amarillo'], ['#2e7d32', 'Verde'], ['#9a6a3a', 'Madera'],
+];
 const TRAY_KINDS = { basket: 'Con rejilla', tray: 'Lisa', dtray: 'Con divisores' };
 const maxTop = () => S.N;  // ninguna pieza sale del rack
 const NEW_COL_WIDTH = 13;   // ancho de columna (caracteres) en Excel nuevo
@@ -552,7 +570,9 @@ function buildSVG(W, H, interactive) {
   out.push(`<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="${P.hatchBg}"/><line x1="0" y1="0" x2="0" y2="6" stroke="${P.hatchLine}" stroke-width="2"/></pattern></defs>`);
   out.push(`<rect x="${floorX1}" y="${f(g.floorY + 1)}" width="${floorX2 - floorX1}" height="10" fill="url(#hatch)" stroke="${P.floor}" stroke-width="1"/>`);
 
-  // Vigas traseras (detrás de todo, al 70%)
+  // Fondos: detrás de todo
+  for (const it of items.filter(i => i.kind === 'fondo')) out.push(rangeSVG(it, g, interactive));
+  // Vigas traseras (al 70%)
   for (const it of items.filter(i => i.kind === 'beam' && i.rear)) out.push(beamSVG(it, g, interactive));
   // Frentes: detrás de cualquier aditamento
   for (const it of items.filter(i => i.kind === 'board')) out.push(rangeSVG(it, g, interactive));
@@ -564,6 +584,8 @@ function buildSVG(W, H, interactive) {
   for (const k of ['pallet', 'tray', 'dtray', 'hbasket', 'basket', 'wbasket', 'cart']) {
     for (const it of items.filter(i => i.kind === k)) out.push(rangeSVG(it, g, interactive));
   }
+
+  if (interactive) out.push(selectionOverlay(g));
 
   // Tabla inferior
   if (S.opts.table) out.push(tableSVG(g, P));
@@ -645,9 +667,11 @@ function rangeSVG(it, g, interactive) {
   const parts = [];
   const op = isPrev ? ' opacity="0.65"' : (drag && drag.id === it.id && drag.removing ? ' opacity="0.4"' : '');
   parts.push(`<g${interactive && !isPrev ? ` data-id="${it.id}"` : ''}${op}>`);
+  // toda el área de la pieza se puede agarrar, aunque el dibujo sea delgado o tenga huecos
+  if (interactive && !isPrev) parts.push(`<rect x="${f(x1)}" y="${f(y1)}" width="${f(x2 - x1)}" height="${f(y2 - y1)}" fill="transparent"/>`);
   if (it.kind === 'basket') parts.push(basketShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'cart') parts.push(cartShapes(it, x1, x2, y1, y2, u));
-  if (it.kind === 'board') parts.push(boardShapes(it, x1, x2, y1, y2, u));
+  if (it.kind === 'board' || it.kind === 'fondo') parts.push(boardShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'wbasket') parts.push(wbasketShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'pallet') parts.push(palletShapes(it, g, x1, x2, y1, y2, u));
   if (it.kind === 'tray') parts.push(trayShapes(it, x1, x2, y1, y2, u));
@@ -656,19 +680,55 @@ function rangeSVG(it, g, interactive) {
   if (interactive && (isSel || bad)) {
     parts.push(`<rect x="${f(x1 - 2)}" y="${f(y1 - 2)}" width="${f(x2 - x1 + 4)}" height="${f(y2 - y1 + 4)}" fill="none" stroke="${bad ? '#c62828' : '#f2d600'}" stroke-width="3" pointer-events="none"/>`);
   }
-  parts.push(rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2));
+  parts.push(rangeTag(it, interactive, isPrev, x2, y1, y2));
   parts.push('</g>');
   return parts.join('');
+}
+
+function rangeBox(it, g) {
+  const u = g.u;
+  const y1 = g.slotTop(it.top), y2 = g.slotTop(it.bottom) + u;
+  let x1 = g.innerL + 2, x2 = g.innerR - 2;
+  if (KINDS[it.kind].wide) {
+    const span = g.innerR - g.innerL;
+    x1 = g.innerL + span * (it.l ?? 0) / 100;
+    x2 = g.innerL + span * (it.r ?? 100) / 100;
+  }
+  return { x1, x2, y1, y2 };
+}
+
+function rangeTag(it, interactive, isPrev, x2, y1, y2) {
+  if (!interactive || isPrev) return '';
+  const tag = `${it.top} – ${it.bottom}`;
+  const ty = Math.max(y1 + 2, y2 - 22);
+  return `<rect x="${f(x2 - 70)}" y="${f(ty)}" width="64" height="16" rx="4" fill="#f2d600" pointer-events="none"/>`
+    + `<text x="${f(x2 - 38)}" y="${f(ty + 8)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="11" fill="#1d2126" pointer-events="none">${tag}</text>`;
+}
+
+// Capa de la pieza seleccionada, dibujada encima de todo: zona para moverla y asas para estirarla
+function selectionOverlay(g) {
+  const it = sel != null ? byId(sel) : null;
+  if (!it || (drag && drag.removing)) return '';
+  if (it.kind === 'beam') {
+    const t = TYPES[it.type];
+    const y = g.slotTop(it.pos) + 0.04 * g.u, h = (t.cm / 7) * 0.92 * g.u;
+    return `<g data-id="${it.id}"><rect x="${f(g.innerL)}" y="${f(y)}" width="${f(g.innerR - g.innerL)}" height="${f(h)}" fill="transparent"/></g>`;
+  }
+  const { x1, x2, y1, y2 } = rangeBox(it, g);
+  return `<g data-id="${it.id}"><rect x="${f(x1)}" y="${f(y1)}" width="${f(x2 - x1)}" height="${f(y2 - y1)}" fill="transparent"/>`
+    + rangeHandles(it, g, true, true, false, x1, x2, y1, y2) + `</g>`;
 }
 
 function rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2) {
   if (!interactive || isPrev) return '';
   const u = g.u, mid = (x1 + x2) / 2, parts = [];
-  // zona de agarre amplia (también para el dedo) y asa visible
+  // zona de agarre amplia, sobre todo hacia afuera, para no tapar el centro (que sirve para mover)
   const hh = Math.max(34, u * 2.2);
+  const inside = Math.min(hh * 0.3, (y2 - y1) * 0.25);
   const gw = Math.min(130, (x2 - x1) * 0.45), gh = 20;
   for (const [name, yy] of [['top', y1], ['bottom', y2]]) {
-    parts.push(`<rect data-handle="${name}" x="${f(x1)}" y="${f(yy - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
+    const hy = name === 'top' ? yy - (hh - inside) : yy - inside;
+    parts.push(`<rect data-handle="${name}" x="${f(x1 + (x2 - x1) * 0.2)}" y="${f(hy)}" width="${f((x2 - x1) * 0.6)}" height="${f(hh)}" fill="transparent"/>`);
     parts.push(`<g data-handle="${name}">`
       + `<rect x="${f(mid - gw / 2)}" y="${f(yy - gh / 2)}" width="${f(gw)}" height="${gh}" rx="10" fill="${isSel ? '#f2d600' : '#ffffff'}" fill-opacity="${isSel ? 1 : 0.92}" stroke="#1d2126" stroke-width="1.5"/>`
       + `<path d="M${f(mid - 14)} ${f(yy - 2.5)}H${f(mid + 14)}M${f(mid - 14)} ${f(yy + 2.5)}H${f(mid + 14)}" stroke="#1d2126" stroke-width="1.6" stroke-linecap="round"/>`
@@ -677,17 +737,15 @@ function rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2) {
   if (KINDS[it.kind].wide) {
     const midY = (y1 + y2) / 2, gv = Math.min(130, (y2 - y1) * 0.45);
     for (const [name, xx] of [['left', x1], ['right', x2]]) {
-      parts.push(`<rect data-handle="${name}" x="${f(xx - hh / 2)}" y="${f(y1 + hh / 2)}" width="${f(hh)}" height="${f(Math.max(0, y2 - y1 - hh))}" fill="transparent"/>`);
+      const insideX = Math.min(hh * 0.3, (x2 - x1) * 0.2);
+      const hx = name === 'left' ? xx - (hh - insideX) : xx - insideX;
+      parts.push(`<rect data-handle="${name}" x="${f(hx)}" y="${f(y1 + (y2 - y1) * 0.25)}" width="${f(hh)}" height="${f((y2 - y1) * 0.5)}" fill="transparent"/>`);
       parts.push(`<g data-handle="${name}">`
         + `<rect x="${f(xx - gh / 2)}" y="${f(midY - gv / 2)}" width="${gh}" height="${f(gv)}" rx="10" fill="${isSel ? '#f2d600' : '#ffffff'}" fill-opacity="${isSel ? 1 : 0.92}" stroke="#1d2126" stroke-width="1.5"/>`
         + `<path d="M${f(xx - 2.5)} ${f(midY - 14)}V${f(midY + 14)}M${f(xx + 2.5)} ${f(midY - 14)}V${f(midY + 14)}" stroke="#1d2126" stroke-width="1.6" stroke-linecap="round"/>`
         + `</g>`);
     }
   }
-  const tag = `${it.top} – ${it.bottom}`;
-  const ty = Math.max(y1 + 2, y2 - 22);
-  parts.push(`<rect x="${f(x2 - 70)}" y="${f(ty)}" width="64" height="16" rx="4" fill="#f2d600" pointer-events="none"/>`);
-  parts.push(`<text x="${f(x2 - 38)}" y="${f(ty + 8)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="11" fill="#1d2126" pointer-events="none">${tag}</text>`);
   return parts.join('');
 }
 
@@ -888,7 +946,7 @@ function panelSVG(it, g, interactive) {
       }
     }
   }
-  parts.push(rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2));
+  parts.push(rangeTag(it, interactive, isPrev, x2, y1, y2));
   parts.push('</g>');
   return parts.join('');
 }
@@ -926,6 +984,7 @@ function render(forceProps) {
   svg.innerHTML = inner;
   renderProps(forceProps);
   renderSummary();
+  renderLayers();
   document.getElementById('btnUndo').disabled = !undoStack.length;
   document.getElementById('btnRedo').disabled = !redoStack.length;
 }
@@ -987,7 +1046,7 @@ function quickAdd(kind, type, rear) {
     it = { id: nextId++, kind, type, pos, ...(rear ? { rear: true } : {}) };
   } else {
     const h = KINDS[kind].h - 1;
-    const top = (kind === 'cart' || KINDS[kind].floor) ? h + 1 : kind === 'board' ? maxTop(kind) : Math.round(S.N / 2 + h / 2);
+    const top = (kind === 'cart' || KINDS[kind].floor) ? h + 1 : KINDS[kind].wide ? maxTop(kind) : Math.round(S.N / 2 + h / 2);
     it = { ...newRangeItem(kind, top), id: nextId++ };
   }
   S.items.push(it); sel = it.id;
@@ -1151,6 +1210,10 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     moveBy(it, (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 5 : 1));
   }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    moveX(it, (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 2));
+  }
 });
 
 function moveBy(it, d) {
@@ -1166,6 +1229,15 @@ function moveBy(it, d) {
     if (top === it.top) return;
     it.top = top; it.bottom = top - h;
   }
+  pushHistory(before); save(); render();
+}
+function moveX(it, d) {
+  if (!KINDS[it.kind] || !KINDS[it.kind].wide) return;
+  const l0 = it.l ?? 0, w = (it.r ?? 100) - l0;
+  const l = clamp(l0 + d, X_MIN, X_MAX - w);
+  if (l === l0) return;
+  const before = snapshot();
+  it.l = l; it.r = l + w;
   pushHistory(before); save(); render();
 }
 function removeItem(id) {
@@ -1235,20 +1307,24 @@ function renderProps(force) {
         <label class="full">Tipo de charola
           <select data-prop="ckind">${Object.entries(TRAY_KINDS).map(([k, n]) => `<option value="${k}"${k === it.kind ? ' selected' : ''}>${n}</option>`).join('')}</select>
         </label>` + extra;
-    if (it.kind === 'board') extra = `
+    if (KINDS[it.kind].wide) extra = `
         <label>Desde (% ancho) <input data-prop="l" type="number" min="${X_MIN}" max="${X_MAX}" step="1" value="${it.l ?? 0}"></label>
         <label>Hasta (% ancho) <input data-prop="r" type="number" min="${X_MIN}" max="${X_MAX}" step="1" value="${it.r ?? 100}"></label>
-        <label>Color <input data-prop="color" type="color" value="${esc(it.color)}" style="height:34px;padding:2px"></label>`;
+        <label>Color <input data-prop="color" type="color" value="${esc(it.color)}" style="height:34px;padding:2px"></label>
+        <div class="swatches">${COLOR_PRESETS.map(([c, n]) => `<button type="button" data-color="${c}" title="${n}" aria-label="${n}" class="${(it.color || '').toLowerCase() === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>`;
     propsEl.innerHTML = `
       <p style="margin:0 0 8px;font-weight:700">${esc(K.name)}</p>
       <div class="fields">
         <label>Arriba (perf.) <input data-prop="top" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.top}"></label>
         <label>Abajo (perf.) <input data-prop="bottom" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.bottom}"></label>${extra}
       </div>
-      <p class="note">${it.kind === 'board' ? 'Arrastra las asas de los bordes para cambiar alto y ancho. Siempre queda dentro del rack y detrás de los aditamentos. 0% – 100% es el ancho entre parantes.' : 'Arrastra el borde superior o inferior para cambiar el alto.'}</p>
+      <p class="note">${it.kind === 'fondo' ? 'El fondo va detrás de todo. Elige un color o usa el selector. Arrastra las asas para cambiar alto y ancho.' : it.kind === 'board' ? 'Arrastra las asas de los bordes para cambiar alto y ancho. Siempre queda dentro del rack y detrás de los aditamentos. 0% – 100% es el ancho entre parantes.' : 'Arrastra el borde superior o inferior para cambiar el alto.'}</p>
       <div class="row" style="margin-top:4px">
         <button data-act="up">▲ Subir</button><button data-act="down">▼ Bajar</button>
-      </div>
+      </div>${KINDS[it.kind].wide ? `
+      <div class="row" style="margin-top:8px">
+        <button data-act="left">◀ Izquierda</button><button data-act="right">Derecha ▶</button>
+      </div>` : ''}
       <div class="row" style="margin-top:8px"><button class="danger" data-act="del">Eliminar</button></div>`;
   }
 }
@@ -1311,12 +1387,42 @@ propsEl.addEventListener('click', e => {
     inp.dispatchEvent(new Event('change', { bubbles: true }));
     return;
   }
+  const colorBtn = e.target.closest('[data-color]');
+  if (colorBtn) {
+    const it = sel != null ? byId(sel) : null;
+    if (!it || it.color === colorBtn.dataset.color) return;
+    const before = snapshot();
+    it.color = colorBtn.dataset.color;
+    pushHistory(before); save(); render(true);
+    return;
+  }
   const act = e.target.dataset.act;
   const it = sel != null ? byId(sel) : null;
   if (!act || !it) return;
+  if (act === 'left') moveX(it, -5);
+  if (act === 'right') moveX(it, 5);
   if (act === 'del') removeItem(it.id);
   if (act === 'up') moveBy(it, 1);
   if (act === 'down') moveBy(it, -1);
+});
+
+/* ---------- Lista de piezas ---------- */
+function itemLabel(it) {
+  if (it.kind === 'beam') return [TYPES[it.type].name + (it.rear ? ' (trasera)' : ''), `perf. ${it.pos}`];
+  return [(TRAY_KINDS[it.kind] ? KINDS[it.kind].name : KINDS[it.kind].name), `${it.top} – ${it.bottom}`];
+}
+function renderLayers() {
+  const list = [...S.items].sort((a, b) => (b.kind === 'beam' ? b.pos : b.top) - (a.kind === 'beam' ? a.pos : a.top));
+  document.getElementById('layers').innerHTML = list.length ? list.map(it => {
+    const [name, where] = itemLabel(it);
+    return `<button type="button" data-layer="${it.id}" class="${it.id === sel ? 'on' : ''}"><span>${esc(name)}</span><small>${esc(where)}</small></button>`;
+  }).join('') : '<p class="hint" style="margin:0">El rack está vacío.</p>';
+}
+document.getElementById('layers').addEventListener('click', e => {
+  const b = e.target.closest('[data-layer]');
+  if (!b) return;
+  sel = +b.dataset.layer;
+  render(true);
 });
 
 /* ---------- Resumen ---------- */
@@ -1376,6 +1482,8 @@ function extraRows(bays) {
   if (pallets) rows.push({ name: 'Viga + tarima (con brazos)', n: pallets, total: pallets * bays, detail: '' });
   const carts = ofKind('cart').reduce((s, c) => s + (c.count | 0), 0);
   if (carts) rows.push({ name: 'Carrito con ruedas', n: carts, total: carts * bays, detail: '' });
+  const fondos = ofKind('fondo').length;
+  if (fondos) rows.push({ name: 'Fondo', n: fondos, total: fondos * bays, detail: '' });
   const boards = ofKind('board').length;
   if (boards) rows.push({ name: 'Frente', n: boards, total: boards * bays, detail: '' });
   return rows;

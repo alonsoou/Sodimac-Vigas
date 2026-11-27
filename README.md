@@ -6,7 +6,8 @@ App web de una sola página para armar el plano de vigas de un rack arrastrando 
 
 Abre `index.html` en Chrome o Edge (doble clic). No necesita instalación ni internet: la librería de Excel está en `vendor/`.
 
-- **Agregar**: arrastra una pieza al rack, o tócala para ponerla en el primer espacio libre. Secciones: **Vigas** (Inicio 10, Viga 7, Viga 10, Término 10), **Vigas traseras** (término 10, dibujada al 70% de opacidad) y **Aditamentos** (panel con gancheras, charola —con rejilla, lisa o con divisores—, canastilla colgante, canasto con ruedas, carrito con ruedas, viga + tarima y frente, que siempre queda dentro del rack y detrás de los aditamentos).
+- **Agregar**: arrastra una pieza al rack, o tócala para ponerla en el primer espacio libre. Secciones: **Vigas** (Inicio 10, Viga 7, Viga 10, Término 10), **Vigas traseras** (término 10, dibujada al 70% de opacidad) y **Aditamentos** (panel con gancheras, charola —con rejilla, lisa o con divisores—, canastilla colgante, canasto con ruedas, carrito con ruedas, viga + tarima, frente —siempre dentro del rack y detrás de los aditamentos— y fondo de color, detrás de todo).
+- **Mover**: arrastra una pieza desde cualquier parte. Las asas para estirar aparecen solo en la pieza seleccionada, y la pieza seleccionada se puede arrastrar aunque esté detrás de otra. En *Piezas en el rack* puedes seleccionar cualquier pieza de la lista.
 - **Viga Default**: botón que carga el modelo base: rack 61/365/122 solo con viga de inicio y viga de término.
 - **Modo noche / modo luz**: botón en el encabezado. La imagen para Excel siempre sale con fondo blanco.
 - **Logo**: el encabezado muestra `logo.svg`; reemplaza ese archivo para cambiarlo.
