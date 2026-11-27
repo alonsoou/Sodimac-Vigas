@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Editor de Vigas</title>
+<title>Constructor de vigas</title>
 <style>
   :root {
     --bg: #eef0f2;
@@ -23,14 +23,17 @@
   body {
     background: var(--bg);
     color: var(--ink);
-    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font: 14px/1.4 "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
   header {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 10px 16px; background: #23272c; color: #fff;
   }
   header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
-  header h1 span { color: var(--hi); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { height: 30px; width: auto; display: block; background: #fff; border-radius: 4px; padding: 2px 6px; }
+  .brand-sep { color: #8b9097; font-size: 22px; font-weight: 300; line-height: 1; }
+  .brand.nologo img, .brand.nologo .brand-sep { display: none; }
   header .spacer { flex: 1; }
   header button { background: #3a3f46; color: #fff; border-color: #50565e; }
   header button:hover:not(:disabled) { background: #474d55; }
@@ -64,7 +67,7 @@
   .pal-swatch.panel { height: 26px; background: #1b1517; border: 1px solid #888; }
   .pal-swatch.basket { height: 22px; background: repeating-linear-gradient(90deg, #b9bec5 0 1px, transparent 1px 5px), repeating-linear-gradient(0deg, #b9bec5 0 1px, #eef0f2 1px 5px); border: 1px solid #8b9097; }
   .pal-swatch.cart { height: 24px; background: #6b7f99; border-radius: 3px 3px 8px 8px; box-shadow: inset 0 -5px 0 #2b2e33; }
-  .pal-swatch.board { height: 30px; background: linear-gradient(90deg, #1f5f8b 0 46%, transparent 46% 54%, #1f5f8b 54%); }
+  .pal-swatch.board { height: 30px; background: #1f5f8b; border: 1px solid #0e2f46; }
   .pal-swatch.wbasket { height: 26px; background: repeating-linear-gradient(90deg, #9aa0a7 0 1px, transparent 1px 4px), linear-gradient(#e4e7ea 0 40%, #c9cdd2 40%); border: 1px solid #7d8188; border-radius: 2px 2px 6px 6px; }
   .pal-swatch.pallet { height: 16px; background: linear-gradient(90deg, #8a5a2b 0 18%, transparent 18% 41%, #8a5a2b 41% 59%, transparent 59% 82%, #8a5a2b 82%) bottom/100% 60% no-repeat, linear-gradient(#b07a43, #b07a43) top/100% 40% no-repeat; }
   .models { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
@@ -155,7 +158,11 @@
 </head>
 <body>
 <header>
-  <h1>Editor de Vigas <span>·</span> Rack</h1>
+  <div class="brand">
+    <img id="logo" src="logo.png" alt="Logo" onerror="this.parentNode.classList.add('nologo')">
+    <span class="brand-sep" aria-hidden="true">|</span>
+    <h1>Constructor de vigas</h1>
+  </div>
   <div class="spacer"></div>
   <button id="btnUndo" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
   <button id="btnRedo" title="Rehacer (Ctrl+Y)">↷ Rehacer</button>
@@ -171,11 +178,9 @@
     </section>
     <section class="sec-pal">
       <h2>Modelos de ejemplo</h2>
-      <p class="hint">Carga un modelo y ajústalo. Se puede deshacer.</p>
+      <p class="hint">Carga el modelo y ajústalo. Se puede deshacer.</p>
       <div class="models">
-        <button data-model="1">Panel ganchos</button>
-        <button data-model="2">Canastos + casetón</button>
-        <button data-model="3">Canasto con ruedas</button>
+        <button data-model="default">Viga Default</button>
       </div>
     </section>
     <section class="sec-data">
@@ -273,7 +278,7 @@ const KINDS = {
   panel:  { name: 'Panel',              sub: 'con barras de ganchos',  h: 12, defaults: { bars: 3, spacing: 3.7 } },
   basket: { name: 'Charola con rejilla', sub: 'canasto apilable',      h: 4,  defaults: { count: 2, separator: true } },
   cart:   { name: 'Carrito con ruedas',  sub: 'carro móvil',           h: 7,  defaults: { count: 2 } },
-  board:  { name: 'Casetón',             sub: 'paneles que sobresalen', h: 24, defaults: { count: 4, color: '#1f5f8b' }, overflow: 8 },
+  board:  { name: 'Casetón',             sub: 'puede sobresalir del rack', h: 24, defaults: { color: '#1f5f8b' }, overflow: 8 },
   wbasket:{ name: 'Canasto con ruedas',  sub: '120 x 70 x 60, al piso',  h: 11, defaults: { count: 2, seps: 3 }, floor: true },
   pallet: { name: 'Tarima',              sub: 'al piso',                 h: 3,  defaults: { count: 1 }, floor: true },
 };
@@ -284,16 +289,18 @@ const NEW_COL_WIDTH = 13;   // ancho de columna (caracteres) en Excel nuevo
 const NEW_ROW_HEIGHT = 15;  // alto de fila (pt) en Excel nuevo
 const STORE_KEY = 'editorVigas.v1';
 
+const DEFAULT_META = { pasillo: '1', lado: '2', metro: '8', bays: '1', rack: '61/365/122', largo: '122' };
 function defaultState() {
   return {
     N: 48,
-    meta: { pasillo: '45', lado: '2', metro: '14', bays: '1', rack: '56/365/250', largo: '250' },
+    meta: { ...DEFAULT_META },
     opts: { range: 'D8:H50', table: true, perLevel: 2, rearPerPanel: 2 },
-    items: modelItems(1),
+    items: modelItems(),
   };
 }
-function modelItems(n) {
-  if (n === 3) return [
+// Modelo "Viga Default": rack 61/365/122 con canasto con ruedas al piso
+function modelItems() {
+  return [
     { id: 1, kind: 'beam', type: 'termino', pos: 48 },
     { id: 2, kind: 'beam', type: 'v10', pos: 40 },
     { id: 3, kind: 'beam', type: 'v10', pos: 33 },
@@ -302,33 +309,7 @@ function modelItems(n) {
     { id: 6, kind: 'beam', type: 'v7', pos: 15 },
     { id: 7, kind: 'wbasket', top: 11, bottom: 1, count: 2, seps: 3 },
   ];
-  if (n === 2) return [
-    { id: 1, kind: 'beam', type: 'v10', pos: 47 },
-    { id: 2, kind: 'beam', type: 'v10', pos: 31 },
-    { id: 3, kind: 'beam', type: 'v7', pos: 24 },
-    { id: 4, kind: 'basket', top: 23, bottom: 20, count: 2, separator: true },
-    { id: 5, kind: 'beam', type: 'v7', pos: 19 },
-    { id: 6, kind: 'beam', type: 'v7', pos: 15 },
-    { id: 7, kind: 'beam', type: 'v7', pos: 10 },
-    { id: 8, kind: 'basket', top: 7, bottom: 4, count: 2, separator: true },
-    { id: 9, kind: 'beam', type: 'inicio', pos: 3 },
-    { id: 10, kind: 'board', top: 53, bottom: 25, count: 4, color: '#1f5f8b' },
-  ];
-  return [
-      { id: 1, kind: 'beam', type: 'termino', pos: 48 },
-      { id: 2, kind: 'beam', type: 'v10', pos: 35 },
-      { id: 3, kind: 'beam', type: 'v7', pos: 29 },
-      { id: 4, kind: 'panel', top: 28, bottom: 12, bars: 3, spacing: 3.7 },
-      { id: 5, kind: 'beam', type: 'v7', pos: 11 },
-      { id: 6, kind: 'beam', type: 'v7', pos: 6 },
-      { id: 7, kind: 'beam', type: 'inicio', pos: 2 },
-  ];
 }
-const MODEL_META = {
-  1: { pasillo: '45', lado: '2', metro: '14', bays: '1', rack: '56/365/250', largo: '250' },
-  2: { pasillo: '42', lado: '2', metro: '8', bays: '1', rack: '56/365/250', largo: '250' },
-  3: { pasillo: '1', lado: '2', metro: '8', bays: '1', rack: '61/365/122', largo: '122' },
-};
 
 let S = load() || defaultState();
 let nextId = Math.max(0, ...S.items.map(i => i.id)) + 1;
@@ -470,19 +451,20 @@ function buildSVG(W, H, interactive) {
     const y = g.slotTop(p) + u / 2;
     const hot = interactive && occupiedTops.has(p);
     if (hot) out.push(`<rect x="${f(18)}" y="${f(g.slotTop(p) + u * 0.06)}" width="30" height="${f(u * 0.88)}" rx="3" fill="#f2d600"/>`);
-    out.push(`<text x="45" y="${f(y)}" text-anchor="end" dominant-baseline="central" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="${f(fsNum)}" fill="#1f3fa8">${p}</text>`);
+    out.push(`<text x="45" y="${f(y)}" text-anchor="end" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="700" font-size="${f(fsNum)}" fill="#1f3fa8">${p}</text>`);
   }
 
   // Parantes (uprights) con perforaciones
   const upTop = g.slotTop(N) - 4;
   for (const x of [g.upL, g.upR]) {
     out.push(`<rect x="${x}" y="${f(upTop)}" width="${g.upW}" height="${f(g.floorY - upTop)}" fill="#4a4e54" stroke="#2b2e33" stroke-width="1"/>`);
-    const hw = 3.6, hh = Math.max(1.2, u * 0.42);
+    const hw = 4, hh = Math.max(2, u * 0.62);
+    let drops = '';
     for (let p = 1; p <= N; p++) {
       const y = g.slotTop(p) + (u - hh) / 2;
-      out.push(`<rect x="${f(x + 4)}" y="${f(y)}" width="${hw}" height="${f(hh)}" fill="#dfe2e6"/>`);
-      out.push(`<rect x="${f(x + g.upW - 4 - hw)}" y="${f(y)}" width="${hw}" height="${f(hh)}" fill="#dfe2e6"/>`);
+      for (const cx of [x + 4 + hw / 2, x + g.upW - 4 - hw / 2]) drops += dropPath(cx, y, hw, hh);
     }
+    out.push(`<path d="${drops}" fill="#dfe2e6"/>`);
     out.push(`<rect x="${x - 10}" y="${f(g.floorY - 4)}" width="${g.upW + 20}" height="5" fill="#2f3237"/>`);
   }
   // Piso
@@ -502,6 +484,12 @@ function buildSVG(W, H, interactive) {
   // Tabla inferior
   if (S.opts.table) out.push(tableSVG(g));
   return { inner: out.join(''), geo: g };
+}
+
+// Perforación en forma de gota: redonda arriba, en punta abajo
+function dropPath(cx, y, w, h) {
+  const rr = Math.min(w / 2, h / 2);
+  return `M${f(cx - rr)} ${f(y + rr)}A${f(rr)} ${f(rr)} 0 0 1 ${f(cx + rr)} ${f(y + rr)}L${f(cx)} ${f(y + h)}Z`;
 }
 
 function stateOf(it) {
@@ -536,13 +524,13 @@ function beamSVG(it, g, interactive) {
   parts.push(`<rect x="${f(x1)}" y="${f(y)}" width="${f(w)}" height="${f(Math.max(1, h * 0.12))}" fill="#6c7077"/>`);
   const label = t.label;
   const fs = Math.max(4, Math.min(h * 0.8, 17, (w * 0.86) / (label.length * 0.62)));
-  parts.push(`<text x="${f(x1 + w / 2)}" y="${f(y + h / 2)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="${f(fs)}" fill="#141618">${esc(label)}</text>`);
+  parts.push(`<text x="${f(x1 + w / 2)}" y="${f(y + h / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="${f(fs)}" fill="#141618">${esc(label)}</text>`);
   if (interactive) {
     // etiqueta con la perforación
     const pw = 26, ph = Math.max(10, Math.min(h * 0.8, 16));
     const px = x2 - pw - 6, py = y + (h - ph) / 2;
     parts.push(`<rect x="${f(px)}" y="${f(py)}" width="${pw}" height="${f(ph)}" rx="4" fill="${bad ? '#c62828' : '#f2d600'}"/>`);
-    parts.push(`<text x="${f(px + pw / 2)}" y="${f(py + ph / 2)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-weight="800" font-size="${f(ph * 0.7)}" fill="${bad ? '#fff' : '#1d2126'}">${it.pos}</text>`);
+    parts.push(`<text x="${f(px + pw / 2)}" y="${f(py + ph / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="${f(ph * 0.7)}" fill="${bad ? '#fff' : '#1d2126'}">${it.pos}</text>`);
   }
   parts.push('</g>');
   return parts.join('');
@@ -573,16 +561,20 @@ function rangeSVG(it, g, interactive) {
 function rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2) {
   if (!interactive || isPrev) return '';
   const u = g.u, mid = (x1 + x2) / 2, parts = [];
-  const hh = Math.max(8, u * 0.7);
-  parts.push(`<rect data-handle="top" x="${f(x1)}" y="${f(y1 - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
-  parts.push(`<rect data-handle="bottom" x="${f(x1)}" y="${f(y2 - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
-  if (isSel) {
-    for (const yy of [y1, y2]) parts.push(`<rect x="${f(mid - 18)}" y="${f(yy - 4)}" width="36" height="8" rx="4" fill="#f2d600" stroke="#1d2126" stroke-width="1" pointer-events="none"/>`);
+  // zona de agarre amplia (también para el dedo) y asa visible
+  const hh = Math.max(34, u * 2.2);
+  const gw = Math.min(130, (x2 - x1) * 0.45), gh = 20;
+  for (const [name, yy] of [['top', y1], ['bottom', y2]]) {
+    parts.push(`<rect data-handle="${name}" x="${f(x1)}" y="${f(yy - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
+    parts.push(`<g data-handle="${name}">`
+      + `<rect x="${f(mid - gw / 2)}" y="${f(yy - gh / 2)}" width="${f(gw)}" height="${gh}" rx="10" fill="${isSel ? '#f2d600' : '#ffffff'}" fill-opacity="${isSel ? 1 : 0.92}" stroke="#1d2126" stroke-width="1.5"/>`
+      + `<path d="M${f(mid - 14)} ${f(yy - 2.5)}H${f(mid + 14)}M${f(mid - 14)} ${f(yy + 2.5)}H${f(mid + 14)}" stroke="#1d2126" stroke-width="1.6" stroke-linecap="round"/>`
+      + `</g>`);
   }
   const tag = `${it.top} – ${it.bottom}`;
   const ty = Math.max(y1 + 2, y2 - 22);
   parts.push(`<rect x="${f(x2 - 70)}" y="${f(ty)}" width="64" height="16" rx="4" fill="#f2d600" pointer-events="none"/>`);
-  parts.push(`<text x="${f(x2 - 38)}" y="${f(ty + 8)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-weight="800" font-size="11" fill="#1d2126" pointer-events="none">${tag}</text>`);
+  parts.push(`<text x="${f(x2 - 38)}" y="${f(ty + 8)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="11" fill="#1d2126" pointer-events="none">${tag}</text>`);
   return parts.join('');
 }
 
@@ -697,21 +689,10 @@ function palletShapes(it, x1, x2, y1, y2, u) {
 }
 
 function boardShapes(it, x1, x2, y1, y2, u) {
-  const n = clamp(it.count | 0 || 1, 1, 8);
   const color = /^#[0-9a-fA-F]{6}$/.test(it.color || '') ? it.color : '#1f5f8b';
-  const p = [];
-  // en número par, dos grupos con pasillo central
-  const groups = n % 2 === 0 && n > 1 ? [n / 2, n / 2] : [n];
-  const centerGap = groups.length === 2 ? (x2 - x1) * 0.07 : 0;
-  const gw = (x2 - x1 - centerGap) / groups.length;
-  groups.forEach((cnt, gi) => {
-    const ga = x1 + gi * (gw + centerGap);
-    for (const [a, b] of splitCols(ga, ga + gw, cnt, 3)) {
-      p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(b - a)}" height="${f(y2 - y1)}" fill="${color}" stroke="#0e2f46" stroke-opacity="0.5" stroke-width="1"/>`);
-      p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f((b - a) * 0.06)}" height="${f(y2 - y1)}" fill="#ffffff" fill-opacity="0.12"/>`);
-    }
-  });
-  return p.join('');
+  const w = x2 - x1;
+  return `<rect x="${f(x1)}" y="${f(y1)}" width="${f(w)}" height="${f(y2 - y1)}" fill="${color}" stroke="#0e2f46" stroke-opacity="0.6" stroke-width="1.2"/>`
+    + `<rect x="${f(x1)}" y="${f(y1)}" width="${f(w * 0.03)}" height="${f(y2 - y1)}" fill="#ffffff" fill-opacity="0.12"/>`;
 }
 
 function panelSVG(it, g, interactive) {
@@ -759,8 +740,8 @@ function tableSVG(g) {
   cols.forEach(([h, v, r], i) => {
     const cw = w * r;
     if (i > 0) p.push(`<line x1="${f(cx)}" y1="${f(y)}" x2="${f(cx)}" y2="${f(y + g.tableH)}" stroke="#1d2126" stroke-width="1.2"/>`);
-    p.push(`<text x="${f(cx + cw / 2)}" y="${f(y + hh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#333">${esc(h)}</text>`);
-    p.push(`<text x="${f(cx + cw / 2)}" y="${f(y + hh + vh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#1d2126">${esc(v)}</text>`);
+    p.push(`<text x="${f(cx + cw / 2)}" y="${f(y + hh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="14" fill="#333">${esc(h)}</text>`);
+    p.push(`<text x="${f(cx + cw / 2)}" y="${f(y + hh + vh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" fill="#1d2126">${esc(v)}</text>`);
     cx += cw;
   });
   return p.join('');
@@ -1057,7 +1038,6 @@ function renderProps(force) {
     if (it.kind === 'pallet') extra = `
         <label>Tarimas <input data-prop="count" type="number" min="1" max="4" step="1" value="${it.count}"></label>`;
     if (it.kind === 'board') extra = `
-        <label>Paneles <input data-prop="count" type="number" min="1" max="8" step="1" value="${it.count}"></label>
         <label>Color <input data-prop="color" type="color" value="${esc(it.color)}" style="height:34px;padding:2px"></label>`;
     propsEl.innerHTML = `
       <p style="margin:0 0 8px;font-weight:700">${esc(K.name)}</p>
@@ -1148,8 +1128,8 @@ function extraRows(bays) {
   if (pallets) rows.push({ name: 'Tarima', n: pallets, total: pallets * bays, detail: '' });
   const carts = ofKind('cart').reduce((s, c) => s + (c.count | 0), 0);
   if (carts) rows.push({ name: 'Carrito con ruedas', n: carts, total: carts * bays, detail: '' });
-  const boards = ofKind('board').reduce((s, c) => s + (c.count | 0), 0);
-  if (boards) rows.push({ name: 'Casetón (paneles)', n: boards, total: boards * bays, detail: '' });
+  const boards = ofKind('board').length;
+  if (boards) rows.push({ name: 'Casetón', n: boards, total: boards * bays, detail: '' });
   return rows;
 }
 function renderSummary() {
@@ -1207,11 +1187,10 @@ bindInput(document.getElementById('inpRange'), e => {
 })();
 
 document.querySelectorAll('[data-model]').forEach(btn => btn.addEventListener('click', () => {
-  const n = +btn.dataset.model;
   const before = snapshot();
   S.N = 48;
-  S.items = modelItems(n);
-  Object.assign(S.meta, MODEL_META[n]);
+  S.items = modelItems();
+  Object.assign(S.meta, DEFAULT_META);
   nextId = Math.max(...S.items.map(i => i.id)) + 1;
   sel = null;
   pushHistory(before); syncInputs(); save(); render(true);
