@@ -237,6 +237,7 @@
       <p class="hint">Carga el modelo y ajústalo. Se puede deshacer.</p>
       <div class="models">
         <button data-model="default">Viga Default</button>
+        <button data-model="gondola">Góndola con fondos</button>
       </div>
     </section>
     <section class="sec-data">
@@ -377,6 +378,25 @@ function defaultState() {
   };
 }
 // Modelo "Viga Default": solo el rack con viga de inicio y viga de término
+// Modelo "Góndola con fondos": fondos de 30 cm entre pilares, barras de carga y bandejas (pasillo 42, metro 4)
+const GONDOLA_META = { pasillo: '42', lado: '2', metro: '4', bays: '1', rack: '56/365/250', largo: '250' };
+function gondolaItems() {
+  return [
+    { id: 1, kind: 'beam', type: 'termino', pos: 48 },
+    { id: 2, kind: 'beam', type: 'v10', pos: 34 },
+    { id: 3, kind: 'beam', type: 'v10', pos: 28 },
+    { id: 4, kind: 'beam', type: 'inicio', pos: 2 },
+    { id: 5, kind: 'fondo', top: 27, bottom: 4, color: '#4a4e54', l: 0, r: 100, cols: 2, pillars: true },
+    { id: 6, kind: 'barra', top: 26, bottom: 24, side: 'B', hooks: 17 },
+    { id: 7, kind: 'barra', top: 22, bottom: 20, side: 'L', hooks: 8 },
+    { id: 8, kind: 'bandeja', top: 24, bottom: 23, side: 'R' },
+    { id: 9, kind: 'bandeja', top: 20, bottom: 19, side: 'R' },
+    { id: 10, kind: 'bandeja', top: 16, bottom: 15, side: 'B' },
+    { id: 11, kind: 'bandeja', top: 12, bottom: 11, side: 'B' },
+    { id: 12, kind: 'bandeja', top: 8, bottom: 7, side: 'B' },
+    { id: 13, kind: 'bandeja', top: 5, bottom: 4, side: 'B' },
+  ];
+}
 function modelItems() {
   return [
     { id: 1, kind: 'beam', type: 'termino', pos: 48 },
@@ -1696,8 +1716,9 @@ bindInput(document.getElementById('inpRange'), e => {
 document.querySelectorAll('[data-model]').forEach(btn => btn.addEventListener('click', () => {
   const before = snapshot();
   S.N = 48;
-  S.items = modelItems();
-  Object.assign(S.meta, DEFAULT_META);
+  const gondola = btn.dataset.model === 'gondola';
+  S.items = gondola ? gondolaItems() : modelItems();
+  Object.assign(S.meta, gondola ? GONDOLA_META : DEFAULT_META);
   nextId = Math.max(...S.items.map(i => i.id)) + 1;
   sel = null;
   pushHistory(before); syncInputs(); save(); render(true);
