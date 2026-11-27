@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Editor de Vigas</title>
+<title>Constructor de vigas</title>
 <style>
   :root {
     --bg: #eef0f2;
@@ -17,20 +17,24 @@
     --danger: #c62828;
     --steel: #4a4e54;
     --radius: 10px;
+    --rack-beam: #55595f;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
     background: var(--bg);
     color: var(--ink);
-    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font: 14px/1.4 "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
   header {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 10px 16px; background: #23272c; color: #fff;
   }
   header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
-  header h1 span { color: var(--hi); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { height: 30px; width: auto; display: block; background: #fff; border-radius: 4px; padding: 2px 6px; }
+  .brand-sep { color: #8b9097; font-size: 22px; font-weight: 300; line-height: 1; }
+  .brand.nologo img, .brand.nologo .brand-sep { display: none; }
   header .spacer { flex: 1; }
   header button { background: #3a3f46; color: #fff; border-color: #50565e; }
   header button:hover:not(:disabled) { background: #474d55; }
@@ -61,12 +65,18 @@
   .pal-item:hover { border-color: var(--accent); background: var(--accent-soft); }
   .pal-item:active { cursor: grabbing; }
   .pal-swatch { width: 54px; flex: none; border-radius: 2px; background: var(--steel); }
+  .pal-swatch.beam { background: var(--rack-beam); }
   .pal-swatch.panel { height: 26px; background: #1b1517; border: 1px solid #888; }
   .pal-swatch.basket { height: 22px; background: repeating-linear-gradient(90deg, #b9bec5 0 1px, transparent 1px 5px), repeating-linear-gradient(0deg, #b9bec5 0 1px, #eef0f2 1px 5px); border: 1px solid #8b9097; }
   .pal-swatch.cart { height: 24px; background: #6b7f99; border-radius: 3px 3px 8px 8px; box-shadow: inset 0 -5px 0 #2b2e33; }
-  .pal-swatch.board { height: 30px; background: linear-gradient(90deg, #1f5f8b 0 46%, transparent 46% 54%, #1f5f8b 54%); }
+  .pal-swatch.board { height: 30px; background: #1f5f8b; border: 1px solid #0e2f46; }
   .pal-swatch.wbasket { height: 26px; background: repeating-linear-gradient(90deg, #9aa0a7 0 1px, transparent 1px 4px), linear-gradient(#e4e7ea 0 40%, #c9cdd2 40%); border: 1px solid #7d8188; border-radius: 2px 2px 6px 6px; }
-  .pal-swatch.pallet { height: 16px; background: linear-gradient(90deg, #8a5a2b 0 18%, transparent 18% 41%, #8a5a2b 41% 59%, transparent 59% 82%, #8a5a2b 82%) bottom/100% 60% no-repeat, linear-gradient(#b07a43, #b07a43) top/100% 40% no-repeat; }
+  .pal-swatch.pallet { height: 22px; background: linear-gradient(#9a6a3a, #9a6a3a) top/100% 62% no-repeat, linear-gradient(var(--rack-beam), var(--rack-beam)) bottom/100% 30% no-repeat; }
+  .stepper { display: flex; align-items: stretch; gap: 0; margin-top: 2px; }
+  .stepper button { width: 44px; flex: none; font-size: 20px; line-height: 1; padding: 6px 0; border-radius: 7px 0 0 7px; }
+  .stepper button:last-child { border-radius: 0 7px 7px 0; }
+  .stepper input { text-align: center; border-radius: 0; border-left: none; border-right: none; font-size: 16px; font-weight: 700; color: var(--ink); -moz-appearance: textfield; }
+  .stepper input::-webkit-inner-spin-button, .stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .models { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
   .pal-item b { display: block; font-size: 13px; }
   .pal-item small { color: var(--muted); }
@@ -155,7 +165,11 @@
 </head>
 <body>
 <header>
-  <h1>Editor de Vigas <span>·</span> Rack</h1>
+  <div class="brand">
+    <img id="logo" src="logo.png" alt="Logo" onerror="this.parentNode.classList.add('nologo')">
+    <span class="brand-sep" aria-hidden="true">|</span>
+    <h1>Constructor de vigas</h1>
+  </div>
   <div class="spacer"></div>
   <button id="btnUndo" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
   <button id="btnRedo" title="Rehacer (Ctrl+Y)">↷ Rehacer</button>
@@ -165,17 +179,19 @@
 <main>
   <aside class="left">
     <section class="sec-pal">
-      <h2>Piezas</h2>
+      <h2>Vigas</h2>
       <p class="hint">Arrastra una pieza al rack, o tócala para agregarla en el primer espacio libre.</p>
-      <div class="palette" id="palette"></div>
+      <div class="palette" id="paletteBeams"></div>
+    </section>
+    <section class="sec-pal">
+      <h2>Aditamentos</h2>
+      <div class="palette" id="paletteAcc"></div>
     </section>
     <section class="sec-pal">
       <h2>Modelos de ejemplo</h2>
-      <p class="hint">Carga un modelo y ajústalo. Se puede deshacer.</p>
+      <p class="hint">Carga el modelo y ajústalo. Se puede deshacer.</p>
       <div class="models">
-        <button data-model="1">Panel ganchos</button>
-        <button data-model="2">Canastos + casetón</button>
-        <button data-model="3">Canasto con ruedas</button>
+        <button data-model="default">Viga Default</button>
       </div>
     </section>
     <section class="sec-data">
@@ -188,6 +204,9 @@
         <label class="full">Rack <input data-meta="rack"></label>
         <label>Largo viga (a) <input data-meta="largo"></label>
         <label>Perforaciones <input id="inpN" type="number" min="10" max="120" step="1"></label>
+        <label class="full">Color del rack
+          <select id="selRackColor"><option value="gris">Gris</option><option value="amarillo">Amarillo</option></select>
+        </label>
       </div>
     </section>
     <section class="sec-keys">
@@ -270,12 +289,12 @@ const TYPES = {
 const TYPE_ORDER = ['inicio', 'v7', 'v10', 'termino'];
 // Piezas que ocupan un rango de perforaciones (arriba / abajo)
 const KINDS = {
-  panel:  { name: 'Panel',              sub: 'con barras de ganchos',  h: 12, defaults: { bars: 3, spacing: 3.7 } },
+  panel:  { name: 'Panel con gancheras', sub: 'barras de ganchos',      h: 12, defaults: { bars: 3, spacing: 3.7, hooks: 10 } },
   basket: { name: 'Charola con rejilla', sub: 'canasto apilable',      h: 4,  defaults: { count: 2, separator: true } },
   cart:   { name: 'Carrito con ruedas',  sub: 'carro móvil',           h: 7,  defaults: { count: 2 } },
-  board:  { name: 'Casetón',             sub: 'paneles que sobresalen', h: 24, defaults: { count: 4, color: '#1f5f8b' }, overflow: 8 },
+  board:  { name: 'Casetón',             sub: 'puede sobresalir del rack', h: 24, defaults: { color: '#1f5f8b', l: 0, r: 100 }, overflow: 8, wide: true },
   wbasket:{ name: 'Canasto con ruedas',  sub: '120 x 70 x 60, al piso',  h: 11, defaults: { count: 2, seps: 3 }, floor: true },
-  pallet: { name: 'Tarima',              sub: 'al piso',                 h: 3,  defaults: { count: 1 }, floor: true },
+  pallet: { name: 'Viga + tarima',       sub: 'tarima sobre viga con brazos', h: 4, defaults: {} },
 };
 const KIND_ORDER = ['panel', 'basket', 'wbasket', 'cart', 'pallet', 'board'];
 const HEADROOM = 8;  // perforaciones extra sobre el rack cuando hay casetones
@@ -284,16 +303,18 @@ const NEW_COL_WIDTH = 13;   // ancho de columna (caracteres) en Excel nuevo
 const NEW_ROW_HEIGHT = 15;  // alto de fila (pt) en Excel nuevo
 const STORE_KEY = 'editorVigas.v1';
 
+const DEFAULT_META = { pasillo: '1', lado: '2', metro: '8', bays: '1', rack: '61/365/122', largo: '122' };
 function defaultState() {
   return {
     N: 48,
-    meta: { pasillo: '45', lado: '2', metro: '14', bays: '1', rack: '56/365/250', largo: '250' },
-    opts: { range: 'D8:H50', table: true, perLevel: 2, rearPerPanel: 2 },
-    items: modelItems(1),
+    meta: { ...DEFAULT_META },
+    opts: { range: 'D8:H50', table: true, perLevel: 2, rearPerPanel: 2, rackColor: 'gris' },
+    items: modelItems(),
   };
 }
-function modelItems(n) {
-  if (n === 3) return [
+// Modelo "Viga Default": rack 61/365/122 con canasto con ruedas al piso
+function modelItems() {
+  return [
     { id: 1, kind: 'beam', type: 'termino', pos: 48 },
     { id: 2, kind: 'beam', type: 'v10', pos: 40 },
     { id: 3, kind: 'beam', type: 'v10', pos: 33 },
@@ -302,33 +323,7 @@ function modelItems(n) {
     { id: 6, kind: 'beam', type: 'v7', pos: 15 },
     { id: 7, kind: 'wbasket', top: 11, bottom: 1, count: 2, seps: 3 },
   ];
-  if (n === 2) return [
-    { id: 1, kind: 'beam', type: 'v10', pos: 47 },
-    { id: 2, kind: 'beam', type: 'v10', pos: 31 },
-    { id: 3, kind: 'beam', type: 'v7', pos: 24 },
-    { id: 4, kind: 'basket', top: 23, bottom: 20, count: 2, separator: true },
-    { id: 5, kind: 'beam', type: 'v7', pos: 19 },
-    { id: 6, kind: 'beam', type: 'v7', pos: 15 },
-    { id: 7, kind: 'beam', type: 'v7', pos: 10 },
-    { id: 8, kind: 'basket', top: 7, bottom: 4, count: 2, separator: true },
-    { id: 9, kind: 'beam', type: 'inicio', pos: 3 },
-    { id: 10, kind: 'board', top: 53, bottom: 25, count: 4, color: '#1f5f8b' },
-  ];
-  return [
-      { id: 1, kind: 'beam', type: 'termino', pos: 48 },
-      { id: 2, kind: 'beam', type: 'v10', pos: 35 },
-      { id: 3, kind: 'beam', type: 'v7', pos: 29 },
-      { id: 4, kind: 'panel', top: 28, bottom: 12, bars: 3, spacing: 3.7 },
-      { id: 5, kind: 'beam', type: 'v7', pos: 11 },
-      { id: 6, kind: 'beam', type: 'v7', pos: 6 },
-      { id: 7, kind: 'beam', type: 'inicio', pos: 2 },
-  ];
 }
-const MODEL_META = {
-  1: { pasillo: '45', lado: '2', metro: '14', bays: '1', rack: '56/365/250', largo: '250' },
-  2: { pasillo: '42', lado: '2', metro: '8', bays: '1', rack: '56/365/250', largo: '250' },
-  3: { pasillo: '1', lado: '2', metro: '8', bays: '1', rack: '61/365/122', largo: '122' },
-};
 
 let S = load() || defaultState();
 let nextId = Math.max(0, ...S.items.map(i => i.id)) + 1;
@@ -437,6 +432,12 @@ function currentBox() {
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const f = n => Math.round(n * 100) / 100;
 
+const RACK_COLORS = {
+  gris:     { up: '#4a4e54', upStroke: '#2b2e33', hole: '#dfe2e6', foot: '#2f3237', beam: '#55595f', beamTop: '#6c7077', beamStroke: '#2b2e33', conn: '#7d8188', connStroke: '#3a3d42', label: '#141618' },
+  amarillo: { up: '#f2c200', upStroke: '#8f7200', hole: '#3a3d42', foot: '#6b5600', beam: '#f6c700', beamTop: '#ffdc4d', beamStroke: '#8f7200', conn: '#d6a900', connStroke: '#7a6100', label: '#1d1a0f' },
+};
+const rc = () => RACK_COLORS[S.opts.rackColor] || RACK_COLORS.gris;
+
 function geometry(W, H, N, withTable, extra) {
   const tableH = withTable ? 74 : 0;
   const tableGap = withTable ? 22 : 0;
@@ -470,20 +471,21 @@ function buildSVG(W, H, interactive) {
     const y = g.slotTop(p) + u / 2;
     const hot = interactive && occupiedTops.has(p);
     if (hot) out.push(`<rect x="${f(18)}" y="${f(g.slotTop(p) + u * 0.06)}" width="30" height="${f(u * 0.88)}" rx="3" fill="#f2d600"/>`);
-    out.push(`<text x="45" y="${f(y)}" text-anchor="end" dominant-baseline="central" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="${f(fsNum)}" fill="#1f3fa8">${p}</text>`);
+    out.push(`<text x="45" y="${f(y)}" text-anchor="end" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="700" font-size="${f(fsNum)}" fill="#1f3fa8">${p}</text>`);
   }
 
   // Parantes (uprights) con perforaciones
   const upTop = g.slotTop(N) - 4;
   for (const x of [g.upL, g.upR]) {
-    out.push(`<rect x="${x}" y="${f(upTop)}" width="${g.upW}" height="${f(g.floorY - upTop)}" fill="#4a4e54" stroke="#2b2e33" stroke-width="1"/>`);
-    const hw = 3.6, hh = Math.max(1.2, u * 0.42);
+    out.push(`<rect x="${x}" y="${f(upTop)}" width="${g.upW}" height="${f(g.floorY - upTop)}" fill="${rc().up}" stroke="${rc().upStroke}" stroke-width="1"/>`);
+    const hw = 4, hh = Math.max(2, u * 0.62);
+    let drops = '';
     for (let p = 1; p <= N; p++) {
       const y = g.slotTop(p) + (u - hh) / 2;
-      out.push(`<rect x="${f(x + 4)}" y="${f(y)}" width="${hw}" height="${f(hh)}" fill="#dfe2e6"/>`);
-      out.push(`<rect x="${f(x + g.upW - 4 - hw)}" y="${f(y)}" width="${hw}" height="${f(hh)}" fill="#dfe2e6"/>`);
+      for (const cx of [x + 4 + hw / 2, x + g.upW - 4 - hw / 2]) drops += dropPath(cx, y, hw, hh);
     }
-    out.push(`<rect x="${x - 10}" y="${f(g.floorY - 4)}" width="${g.upW + 20}" height="5" fill="#2f3237"/>`);
+    out.push(`<path d="${drops}" fill="${rc().hole}"/>`);
+    out.push(`<rect x="${x - 10}" y="${f(g.floorY - 4)}" width="${g.upW + 20}" height="5" fill="${rc().foot}"/>`);
   }
   // Piso
   const floorX1 = 34, floorX2 = W - 34;
@@ -504,12 +506,36 @@ function buildSVG(W, H, interactive) {
   return { inner: out.join(''), geo: g };
 }
 
+// Perforación en forma de gota: redonda arriba, en punta abajo
+function dropPath(cx, y, w, h) {
+  const rr = Math.min(w / 2, h / 2);
+  return `M${f(cx - rr)} ${f(y + rr)}A${f(rr)} ${f(rr)} 0 0 1 ${f(cx + rr)} ${f(y + rr)}L${f(cx)} ${f(y + h)}Z`;
+}
+
 function stateOf(it) {
   const isSel = it.id === sel;
   const isPrev = preview && it === preview;
   const bad = (drag && drag.id === it.id && (drag.invalid || drag.removing)) || (isPrev && preview.invalid);
   return { isSel, isPrev, bad };
 }
+
+// Conector de viga: placa sobre cada parante, enganchada en 3 gotas
+function connectorSVG(g, pos, slots) {
+  const u = g.u;
+  let top = pos + (slots === 1 ? 1 : 0);          // 3 perforaciones centradas en la viga
+  top = clamp(top, 3, g.N);
+  const yTop = g.slotTop(top), yBot = g.slotTop(top - 2) + u;
+  const hw = 4, hh = Math.max(2, u * 0.62);
+  const out = [];
+  for (const [px, hx] of [[g.upL + g.upW - 10, g.upL + g.upW - 6], [g.upR - 2, g.upR + 6]]) {
+    out.push(`<rect x="${f(px)}" y="${f(yTop + u * 0.08)}" width="12" height="${f(yBot - yTop - u * 0.16)}" rx="1.5" fill="${rc().conn}" stroke="${rc().connStroke}" stroke-width="0.8"/>`);
+    let d = '';
+    for (let k = 0; k < 3; k++) d += dropPath(hx, g.slotTop(top - k) + (u - hh) / 2, hw, hh);
+    out.push(`<path d="${d}" fill="#1d2126"/>`);
+  }
+  return out.join('');
+}
+const connectorsSVG = connectorSVG;
 
 function beamSVG(it, g, interactive) {
   const t = TYPES[it.type];
@@ -521,28 +547,21 @@ function beamSVG(it, g, interactive) {
   const parts = [];
   const op = isPrev ? ' opacity="0.65"' : (drag && drag.id === it.id && drag.removing ? ' opacity="0.4"' : '');
   parts.push(`<g${interactive && !isPrev ? ` data-id="${it.id}"` : ''}${op}>`);
-  // conectores sobre los parantes
-  const ch = h + 0.5 * u, cy = y - 0.25 * u;
-  for (const cx of [g.upL + g.upW - 9, g.upR - 3]) {
-    parts.push(`<rect x="${f(cx)}" y="${f(cy)}" width="12" height="${f(ch)}" fill="#7d8188" stroke="#3a3d42" stroke-width="0.8"/>`);
-    const dots = t.slots;
-    for (let k = 0; k < dots; k++) {
-      parts.push(`<circle cx="${f(cx + 6)}" cy="${f(cy + ch * (k + 1) / (dots + 1))}" r="${f(Math.max(0.8, Math.min(1.8, u * 0.12)))}" fill="#2b2e33"/>`);
-    }
-  }
-  const stroke = bad ? '#c62828' : (isSel ? '#f2d600' : '#2b2e33');
+  parts.push(connectorsSVG(g, it.pos, t.slots));
+  const yellow = S.opts.rackColor === 'amarillo';
+  const stroke = bad ? '#c62828' : (isSel ? (yellow ? '#1f3fa8' : '#f2d600') : rc().beamStroke);
   const sw = bad || isSel ? 3 : 1;
-  parts.push(`<rect x="${f(x1)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="#55595f" stroke="${stroke}" stroke-width="${sw}"/>`);
-  parts.push(`<rect x="${f(x1)}" y="${f(y)}" width="${f(w)}" height="${f(Math.max(1, h * 0.12))}" fill="#6c7077"/>`);
+  parts.push(`<rect x="${f(x1)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="${rc().beam}" stroke="${stroke}" stroke-width="${sw}"/>`);
+  parts.push(`<rect x="${f(x1)}" y="${f(y)}" width="${f(w)}" height="${f(Math.max(1, h * 0.12))}" fill="${rc().beamTop}"/>`);
   const label = t.label;
   const fs = Math.max(4, Math.min(h * 0.8, 17, (w * 0.86) / (label.length * 0.62)));
-  parts.push(`<text x="${f(x1 + w / 2)}" y="${f(y + h / 2)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="${f(fs)}" fill="#141618">${esc(label)}</text>`);
+  parts.push(`<text x="${f(x1 + w / 2)}" y="${f(y + h / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="${f(fs)}" fill="${rc().label}">${esc(label)}</text>`);
   if (interactive) {
     // etiqueta con la perforación
     const pw = 26, ph = Math.max(10, Math.min(h * 0.8, 16));
     const px = x2 - pw - 6, py = y + (h - ph) / 2;
     parts.push(`<rect x="${f(px)}" y="${f(py)}" width="${pw}" height="${f(ph)}" rx="4" fill="${bad ? '#c62828' : '#f2d600'}"/>`);
-    parts.push(`<text x="${f(px + pw / 2)}" y="${f(py + ph / 2)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-weight="800" font-size="${f(ph * 0.7)}" fill="${bad ? '#fff' : '#1d2126'}">${it.pos}</text>`);
+    parts.push(`<text x="${f(px + pw / 2)}" y="${f(py + ph / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="${f(ph * 0.7)}" fill="${bad ? '#fff' : '#1d2126'}">${it.pos}</text>`);
   }
   parts.push('</g>');
   return parts.join('');
@@ -552,7 +571,12 @@ function rangeSVG(it, g, interactive) {
   if (it.kind === 'panel') return panelSVG(it, g, interactive);
   const u = g.u;
   const y1 = g.slotTop(it.top), y2 = g.slotTop(it.bottom) + u;
-  const x1 = g.innerL + 2, x2 = g.innerR - 2;
+  let x1 = g.innerL + 2, x2 = g.innerR - 2;
+  if (KINDS[it.kind].wide) {
+    const span = g.innerR - g.innerL;
+    x1 = g.innerL + span * (it.l ?? 0) / 100;
+    x2 = g.innerL + span * (it.r ?? 100) / 100;
+  }
   const { isSel, isPrev, bad } = stateOf(it);
   const parts = [];
   const op = isPrev ? ' opacity="0.65"' : (drag && drag.id === it.id && drag.removing ? ' opacity="0.4"' : '');
@@ -561,7 +585,7 @@ function rangeSVG(it, g, interactive) {
   if (it.kind === 'cart') parts.push(cartShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'board') parts.push(boardShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'wbasket') parts.push(wbasketShapes(it, x1, x2, y1, y2, u));
-  if (it.kind === 'pallet') parts.push(palletShapes(it, x1, x2, y1, y2, u));
+  if (it.kind === 'pallet') parts.push(palletShapes(it, g, x1, x2, y1, y2, u));
   if (interactive && (isSel || bad)) {
     parts.push(`<rect x="${f(x1 - 2)}" y="${f(y1 - 2)}" width="${f(x2 - x1 + 4)}" height="${f(y2 - y1 + 4)}" fill="none" stroke="${bad ? '#c62828' : '#f2d600'}" stroke-width="3" pointer-events="none"/>`);
   }
@@ -573,16 +597,30 @@ function rangeSVG(it, g, interactive) {
 function rangeHandles(it, g, interactive, isSel, isPrev, x1, x2, y1, y2) {
   if (!interactive || isPrev) return '';
   const u = g.u, mid = (x1 + x2) / 2, parts = [];
-  const hh = Math.max(8, u * 0.7);
-  parts.push(`<rect data-handle="top" x="${f(x1)}" y="${f(y1 - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
-  parts.push(`<rect data-handle="bottom" x="${f(x1)}" y="${f(y2 - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
-  if (isSel) {
-    for (const yy of [y1, y2]) parts.push(`<rect x="${f(mid - 18)}" y="${f(yy - 4)}" width="36" height="8" rx="4" fill="#f2d600" stroke="#1d2126" stroke-width="1" pointer-events="none"/>`);
+  // zona de agarre amplia (también para el dedo) y asa visible
+  const hh = Math.max(34, u * 2.2);
+  const gw = Math.min(130, (x2 - x1) * 0.45), gh = 20;
+  for (const [name, yy] of [['top', y1], ['bottom', y2]]) {
+    parts.push(`<rect data-handle="${name}" x="${f(x1)}" y="${f(yy - hh / 2)}" width="${f(x2 - x1)}" height="${f(hh)}" fill="transparent"/>`);
+    parts.push(`<g data-handle="${name}">`
+      + `<rect x="${f(mid - gw / 2)}" y="${f(yy - gh / 2)}" width="${f(gw)}" height="${gh}" rx="10" fill="${isSel ? '#f2d600' : '#ffffff'}" fill-opacity="${isSel ? 1 : 0.92}" stroke="#1d2126" stroke-width="1.5"/>`
+      + `<path d="M${f(mid - 14)} ${f(yy - 2.5)}H${f(mid + 14)}M${f(mid - 14)} ${f(yy + 2.5)}H${f(mid + 14)}" stroke="#1d2126" stroke-width="1.6" stroke-linecap="round"/>`
+      + `</g>`);
+  }
+  if (KINDS[it.kind].wide) {
+    const midY = (y1 + y2) / 2, gv = Math.min(130, (y2 - y1) * 0.45);
+    for (const [name, xx] of [['left', x1], ['right', x2]]) {
+      parts.push(`<rect data-handle="${name}" x="${f(xx - hh / 2)}" y="${f(y1 + hh / 2)}" width="${f(hh)}" height="${f(Math.max(0, y2 - y1 - hh))}" fill="transparent"/>`);
+      parts.push(`<g data-handle="${name}">`
+        + `<rect x="${f(xx - gh / 2)}" y="${f(midY - gv / 2)}" width="${gh}" height="${f(gv)}" rx="10" fill="${isSel ? '#f2d600' : '#ffffff'}" fill-opacity="${isSel ? 1 : 0.92}" stroke="#1d2126" stroke-width="1.5"/>`
+        + `<path d="M${f(xx - 2.5)} ${f(midY - 14)}V${f(midY + 14)}M${f(xx + 2.5)} ${f(midY - 14)}V${f(midY + 14)}" stroke="#1d2126" stroke-width="1.6" stroke-linecap="round"/>`
+        + `</g>`);
+    }
   }
   const tag = `${it.top} – ${it.bottom}`;
   const ty = Math.max(y1 + 2, y2 - 22);
   parts.push(`<rect x="${f(x2 - 70)}" y="${f(ty)}" width="64" height="16" rx="4" fill="#f2d600" pointer-events="none"/>`);
-  parts.push(`<text x="${f(x2 - 38)}" y="${f(ty + 8)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, sans-serif" font-weight="800" font-size="11" fill="#1d2126" pointer-events="none">${tag}</text>`);
+  parts.push(`<text x="${f(x2 - 38)}" y="${f(ty + 8)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="11" fill="#1d2126" pointer-events="none">${tag}</text>`);
   return parts.join('');
 }
 
@@ -679,39 +717,29 @@ function wbasketShapes(it, x1, x2, y1, y2, u) {
   return p.join('');
 }
 
-function palletShapes(it, x1, x2, y1, y2, u) {
-  const n = clamp(it.count | 0 || 1, 1, 4);
+function palletShapes(it, g, x1, x2, y1, y2, u) {
+  // viga en la perforación inferior + tarima (rectángulo café) apoyada encima
   const p = [];
-  const h = y2 - y1;
-  for (const [a, b] of splitCols(x1 + 2, x2 - 2, n, 6)) {
-    const w = b - a, deck = Math.max(2, h * 0.28), base = Math.max(1.5, h * 0.18);
-    p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(w)}" height="${f(deck)}" fill="#b07a43" stroke="#6d4520" stroke-width="1"/>`);
-    p.push(`<rect x="${f(a)}" y="${f(y2 - base)}" width="${f(w)}" height="${f(base)}" fill="#a06d3a" stroke="#6d4520" stroke-width="1"/>`);
-    const bw = Math.max(6, w * 0.12);
-    for (const fx of [0, 0.5, 1]) {
-      const bx = a + (w - bw) * fx;
-      p.push(`<rect x="${f(bx)}" y="${f(y1 + deck)}" width="${f(bw)}" height="${f(h - deck - base)}" fill="#8a5a2b" stroke="#6d4520" stroke-width="1"/>`);
+  const bh = 0.92 * u, by = g.slotTop(it.bottom) + 0.04 * u;
+  const tTop = y1 + u * 0.1, tBot = by - u * 0.05;
+  if (tBot > tTop) {
+    p.push(`<rect x="${f(g.innerL + 6)}" y="${f(tTop)}" width="${f(g.innerR - g.innerL - 12)}" height="${f(tBot - tTop)}" fill="#9a6a3a" stroke="#5e3d1d" stroke-width="1.2"/>`);
+    // brazos que sostienen la tarima
+    for (const ax of [g.innerL + 2, g.innerR - 10]) {
+      p.push(`<rect x="${f(ax)}" y="${f(tBot - Math.min(u * 1.2, tBot - tTop))}" width="8" height="${f(Math.min(u * 1.2, tBot - tTop))}" fill="${rc().conn}" stroke="${rc().connStroke}" stroke-width="0.8"/>`);
     }
   }
+  p.push(connectorSVG(g, it.bottom, 1));
+  p.push(`<rect x="${f(g.innerL)}" y="${f(by)}" width="${f(g.innerR - g.innerL)}" height="${f(bh)}" fill="${rc().beam}" stroke="${rc().beamStroke}" stroke-width="1"/>`);
+  p.push(`<rect x="${f(g.innerL)}" y="${f(by)}" width="${f(g.innerR - g.innerL)}" height="${f(Math.max(1, bh * 0.12))}" fill="${rc().beamTop}"/>`);
   return p.join('');
 }
 
 function boardShapes(it, x1, x2, y1, y2, u) {
-  const n = clamp(it.count | 0 || 1, 1, 8);
   const color = /^#[0-9a-fA-F]{6}$/.test(it.color || '') ? it.color : '#1f5f8b';
-  const p = [];
-  // en número par, dos grupos con pasillo central
-  const groups = n % 2 === 0 && n > 1 ? [n / 2, n / 2] : [n];
-  const centerGap = groups.length === 2 ? (x2 - x1) * 0.07 : 0;
-  const gw = (x2 - x1 - centerGap) / groups.length;
-  groups.forEach((cnt, gi) => {
-    const ga = x1 + gi * (gw + centerGap);
-    for (const [a, b] of splitCols(ga, ga + gw, cnt, 3)) {
-      p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(b - a)}" height="${f(y2 - y1)}" fill="${color}" stroke="#0e2f46" stroke-opacity="0.5" stroke-width="1"/>`);
-      p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f((b - a) * 0.06)}" height="${f(y2 - y1)}" fill="#ffffff" fill-opacity="0.12"/>`);
-    }
-  });
-  return p.join('');
+  const w = x2 - x1;
+  return `<rect x="${f(x1)}" y="${f(y1)}" width="${f(w)}" height="${f(y2 - y1)}" fill="${color}" stroke="#0e2f46" stroke-opacity="0.6" stroke-width="1.2"/>`
+    + `<rect x="${f(x1)}" y="${f(y1)}" width="${f(w * 0.03)}" height="${f(y2 - y1)}" fill="#ffffff" fill-opacity="0.12"/>`;
 }
 
 function panelSVG(it, g, interactive) {
@@ -736,12 +764,18 @@ function panelSVG(it, g, interactive) {
     const by = y1 + (0.45 + i * spacing) * u;
     if (by > y2 - u * 0.4) break;
     for (const [a, b] of [[x1 + 4, mid - 8], [mid + 8, x2 - 4]]) {
-      parts.push(`<rect x="${f(a)}" y="${f(by - barW / 2)}" width="${f(b - a)}" height="${f(barW)}" fill="#c9ccd1"/>`);
-      const n = 10, step = (b - a) / n;
+      // riel de la ganchera
+      parts.push(`<rect x="${f(a)}" y="${f(by - barW / 2)}" width="${f(b - a)}" height="${f(barW)}" fill="#9aa0a7"/>`);
+      const n = clamp(it.hooks | 0 || 10, 1, 30), step = (b - a) / n;
+      const tagW = Math.min(step * 0.62, 18), tagH = Math.max(2.5, u * 0.42);
+      const hookL = Math.max(3, u * 0.55);
       for (let k = 0; k < n; k++) {
         const hx = a + step * (k + 0.5);
-        parts.push(`<rect x="${f(hx - step * 0.28)}" y="${f(by - barW)}" width="${f(step * 0.56)}" height="${f(barW * 2)}" rx="1" fill="#e9ebee" stroke="#7d8188" stroke-width="0.5"/>`);
-        parts.push(`<line x1="${f(hx)}" y1="${f(by + barW)}" x2="${f(hx)}" y2="${f(by + barW + u * 0.45)}" stroke="#9a9ea4" stroke-width="0.9"/>`);
+        // gancho pequeño donde se cuelga el producto
+        parts.push(`<path d="M${f(hx)} ${f(by)}V${f(by + hookL)}q0 ${f(hookL * 0.35)} ${f(hookL * 0.3)} ${f(hookL * 0.35)}" stroke="#d5d8dc" stroke-width="0.9" fill="none" stroke-linecap="round"/>`);
+        // etiqueta de precio arriba
+        parts.push(`<rect x="${f(hx - tagW / 2)}" y="${f(by - barW / 2 - tagH)}" width="${f(tagW)}" height="${f(tagH)}" fill="#ffffff" stroke="#7d8188" stroke-width="0.5"/>`);
+        parts.push(`<rect x="${f(hx - tagW * 0.3)}" y="${f(by - barW / 2 - tagH * 0.62)}" width="${f(tagW * 0.6)}" height="${f(Math.max(0.6, tagH * 0.22))}" fill="#c62828"/>`);
       }
     }
   }
@@ -759,8 +793,8 @@ function tableSVG(g) {
   cols.forEach(([h, v, r], i) => {
     const cw = w * r;
     if (i > 0) p.push(`<line x1="${f(cx)}" y1="${f(y)}" x2="${f(cx)}" y2="${f(y + g.tableH)}" stroke="#1d2126" stroke-width="1.2"/>`);
-    p.push(`<text x="${f(cx + cw / 2)}" y="${f(y + hh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#333">${esc(h)}</text>`);
-    p.push(`<text x="${f(cx + cw / 2)}" y="${f(y + hh + vh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#1d2126">${esc(v)}</text>`);
+    p.push(`<text x="${f(cx + cw / 2)}" y="${f(y + hh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="14" fill="#333">${esc(h)}</text>`);
+    p.push(`<text x="${f(cx + cw / 2)}" y="${f(y + hh + vh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" fill="#1d2126">${esc(v)}</text>`);
     cx += cw;
   });
   return p.join('');
@@ -794,13 +828,15 @@ function showTip(text, bad) {
 }
 
 /* ---------- Paleta ---------- */
-const palette = document.getElementById('palette');
+const palette = document.querySelector('aside.left');
 function buildPalette() {
-  const items = [...TYPE_ORDER.map(k => ({ kind: 'beam', type: k })), ...KIND_ORDER.map(k => ({ kind: k }))];
-  palette.innerHTML = items.map(p => {
-    if (p.kind !== 'beam') { const K = KINDS[p.kind]; return `<div class="pal-item" data-kind="${p.kind}"><div class="pal-swatch ${p.kind}"></div><div><b>${esc(K.name)}</b><small>${esc(K.sub)}</small></div></div>`; }
-    const t = TYPES[p.type];
-    return `<div class="pal-item" data-kind="beam" data-type="${p.type}"><div class="pal-swatch" style="height:${t.cm === 10 ? 14 : 10}px"></div><div><b>${esc(t.short)}</b><small>${t.cm} cm · ${t.slots} perf.</small></div></div>`;
+  document.getElementById('paletteBeams').innerHTML = TYPE_ORDER.map(k => {
+    const t = TYPES[k];
+    return `<div class="pal-item" data-kind="beam" data-type="${k}"><div class="pal-swatch beam" style="height:${t.cm === 10 ? 14 : 10}px"></div><div><b>${esc(t.short)}</b><small>${t.cm} cm · ${t.slots} perf.</small></div></div>`;
+  }).join('');
+  document.getElementById('paletteAcc').innerHTML = KIND_ORDER.map(k => {
+    const K = KINDS[k];
+    return `<div class="pal-item" data-kind="${k}"><div class="pal-swatch ${k}"></div><div><b>${esc(K.name)}</b><small>${esc(K.sub)}</small></div></div>`;
   }).join('');
 }
 
@@ -810,6 +846,10 @@ function svgPoint(e) {
   const m = svg.getScreenCTM();
   return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 };
 }
+// posición horizontal como % del ancho interior del rack
+function xPct(x) { return (x - lastGeo.innerL) / (lastGeo.innerR - lastGeo.innerL) * 100; }
+const X_MIN = -12, X_MAX = 112, X_MIN_W = 10;
+
 function insideRack(e) {
   const r = svg.getBoundingClientRect();
   return e.clientX >= r.left - 10 && e.clientX <= r.right + 10 && e.clientY >= r.top - 10 && e.clientY <= r.bottom + 10;
@@ -858,13 +898,16 @@ svg.addEventListener('pointerdown', e => {
   if (!it) return;
   const hEl = e.target.closest('[data-handle]');
   const handle = it.kind !== 'beam' && hEl ? hEl.dataset.handle : 'move';
-  const v = lastGeo.vFromY(svgPoint(e).y);
+  if (KINDS[it.kind] && KINDS[it.kind].wide) { it.l = it.l ?? 0; it.r = it.r ?? 100; }
+  const pt0 = svgPoint(e);
+  const v = lastGeo.vFromY(pt0.y);
+  const fx0 = xPct(pt0.x);
   let offset;
   if (it.kind === 'beam') offset = it.pos - v;
   else if (handle === 'bottom') offset = (it.bottom - 1) - v;
   else offset = it.top - v;
   sel = id;
-  drag = { id, handle, offset, orig: JSON.parse(JSON.stringify(it)), before: snapshot(), changed: false, invalid: false, removing: false };
+  drag = { id, handle, offset, fx0, orig: JSON.parse(JSON.stringify(it)), before: snapshot(), changed: false, invalid: false, removing: false };
   stage.classList.add('dragging');
   render(true);
 });
@@ -872,7 +915,9 @@ svg.addEventListener('pointerdown', e => {
 window.addEventListener('pointermove', e => {
   if (drag) {
     const it = byId(drag.id);
-    const v = lastGeo.vFromY(svgPoint(e).y);
+    const ptm = svgPoint(e);
+    const v = lastGeo.vFromY(ptm.y);
+    const dx = Math.round(xPct(ptm.x) - drag.fx0);
     drag.removing = !insideRack(e);
     if (it.kind === 'beam') {
       const t = TYPES[it.type];
@@ -883,6 +928,17 @@ window.addEventListener('pointermove', e => {
       const h = drag.orig.top - drag.orig.bottom;
       const top = clamp(Math.round(v + drag.offset), h + 1, maxTop(it.kind));
       if (top !== it.top) { it.top = top; it.bottom = top - h; drag.changed = true; }
+      if (KINDS[it.kind].wide) {
+        const w = drag.orig.r - drag.orig.l;
+        const l = clamp(drag.orig.l + dx, X_MIN, X_MAX - w);
+        if (l !== it.l) { it.l = l; it.r = l + w; drag.changed = true; }
+      }
+    } else if (drag.handle === 'left') {
+      const l = clamp(drag.orig.l + dx, X_MIN, it.r - X_MIN_W);
+      if (l !== it.l) { it.l = l; drag.changed = true; }
+    } else if (drag.handle === 'right') {
+      const rr = clamp(drag.orig.r + dx, it.l + X_MIN_W, X_MAX);
+      if (rr !== it.r) { it.r = rr; drag.changed = true; }
     } else if (drag.handle === 'top') {
       const top = clamp(Math.round(v + drag.offset), it.bottom, maxTop(it.kind));
       if (top !== it.top) { it.top = top; drag.changed = true; }
@@ -892,6 +948,7 @@ window.addEventListener('pointermove', e => {
     }
     if (drag.removing) showTip('Suelta para eliminar', true);
     else if (drag.invalid) showTip('Choca con otra viga', true);
+    else if (drag.handle === 'left' || drag.handle === 'right') showTip(`Ancho ${it.l}% – ${it.r}%`);
     else showTip(it.kind === 'beam' ? `Perforación ${it.pos}` : `${KINDS[it.kind].name} ${it.top} – ${it.bottom}`);
     render();
     return;
@@ -1044,7 +1101,8 @@ function renderProps(force) {
     const K = KINDS[it.kind];
     let extra = '';
     if (it.kind === 'panel') extra = `
-        <label>Barras de ganchos <input data-prop="bars" type="number" min="0" max="12" step="1" value="${it.bars}"></label>
+        <label class="full">Gancheras (barras) ${stepper('bars', it.bars, 1, 20)}</label>
+        <label class="full">Ganchos por ganchera ${stepper('hooks', it.hooks ?? 10, 1, 30)}</label>
         <label>Separación (perf.) <input data-prop="spacing" type="number" min="0.5" max="20" step="0.1" value="${it.spacing}"></label>`;
     if (it.kind === 'basket') extra = `
         <label>Canastos por nivel <input data-prop="count" type="number" min="1" max="8" step="1" value="${it.count}"></label>
@@ -1054,10 +1112,9 @@ function renderProps(force) {
     if (it.kind === 'wbasket') extra = `
         <label>Secciones (dibujo) <input data-prop="count" type="number" min="1" max="6" step="1" value="${it.count}"></label>
         <label>Separadores <input data-prop="seps" type="number" min="0" max="10" step="1" value="${it.seps}"></label>`;
-    if (it.kind === 'pallet') extra = `
-        <label>Tarimas <input data-prop="count" type="number" min="1" max="4" step="1" value="${it.count}"></label>`;
     if (it.kind === 'board') extra = `
-        <label>Paneles <input data-prop="count" type="number" min="1" max="8" step="1" value="${it.count}"></label>
+        <label>Desde (% ancho) <input data-prop="l" type="number" min="${X_MIN}" max="${X_MAX}" step="1" value="${it.l ?? 0}"></label>
+        <label>Hasta (% ancho) <input data-prop="r" type="number" min="${X_MIN}" max="${X_MAX}" step="1" value="${it.r ?? 100}"></label>
         <label>Color <input data-prop="color" type="color" value="${esc(it.color)}" style="height:34px;padding:2px"></label>`;
     propsEl.innerHTML = `
       <p style="margin:0 0 8px;font-weight:700">${esc(K.name)}</p>
@@ -1065,12 +1122,17 @@ function renderProps(force) {
         <label>Arriba (perf.) <input data-prop="top" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.top}"></label>
         <label>Abajo (perf.) <input data-prop="bottom" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.bottom}"></label>${extra}
       </div>
-      <p class="note">Arrastra el borde superior o inferior para cambiar el alto.${it.kind === 'board' ? ' El casetón puede sobresalir del rack.' : ''}</p>
+      <p class="note">${it.kind === 'board' ? 'Arrastra las asas de los bordes para cambiar alto y ancho. Puede sobresalir del rack. 0% – 100% es el ancho entre parantes.' : 'Arrastra el borde superior o inferior para cambiar el alto.'}</p>
       <div class="row" style="margin-top:4px">
         <button data-act="up">▲ Subir</button><button data-act="down">▼ Bajar</button>
       </div>
       <div class="row" style="margin-top:8px"><button class="danger" data-act="del">Eliminar</button></div>`;
   }
+}
+function stepper(prop, val, min, max) {
+  return `<span class="stepper"><button type="button" data-step="-1" data-for="${prop}" aria-label="Menos">−</button>`
+    + `<input data-prop="${prop}" type="number" min="${min}" max="${max}" step="1" value="${val}">`
+    + `<button type="button" data-step="1" data-for="${prop}" aria-label="Más">+</button></span>`;
 }
 let propBefore = null;
 propsEl.addEventListener('focusin', e => { if (e.target.dataset.prop) propBefore = snapshot(); });
@@ -1094,16 +1156,29 @@ propsEl.addEventListener('change', e => {
   } else {
     if (prop === 'top') it.top = clamp(Math.round(+raw || 0), it.bottom, maxTop(it.kind));
     if (prop === 'bottom') it.bottom = clamp(Math.round(+raw || 0), 1, it.top);
-    if (prop === 'bars') it.bars = clamp(Math.round(+raw || 0), 0, 12);
+    if (prop === 'bars') it.bars = clamp(Math.round(+raw || 1), 1, 20);
     if (prop === 'spacing') it.spacing = clamp(+raw || 3.7, 0.5, 20);
     if (prop === 'count') it.count = clamp(Math.round(+raw || 1), 1, 8);
     if (prop === 'seps') it.seps = clamp(Math.round(+raw || 0), 0, 10);
     if (prop === 'separator') it.separator = e.target.checked;
     if (prop === 'color' && /^#[0-9a-fA-F]{6}$/.test(raw)) it.color = raw;
+    if (prop === 'l') it.l = clamp(Math.round(+raw || 0), X_MIN, (it.r ?? 100) - X_MIN_W);
+    if (prop === 'r') it.r = clamp(Math.round(+raw || 0), (it.l ?? 0) + X_MIN_W, X_MAX);
+    if (prop === 'hooks') it.hooks = clamp(Math.round(+raw || 1), 1, 30);
   }
   pushHistory(before); save(); render(true);
 });
 propsEl.addEventListener('click', e => {
+  const stepBtn = e.target.closest('[data-step]');
+  if (stepBtn) {
+    const inp = propsEl.querySelector(`input[data-prop="${stepBtn.dataset.for}"]`);
+    const v = clamp((+inp.value || 0) + (+stepBtn.dataset.step), +inp.min, +inp.max);
+    if (v === +inp.value) return;
+    inp.value = v;
+    propBefore = snapshot();
+    inp.dispatchEvent(new Event('change', { bubbles: true }));
+    return;
+  }
   const act = e.target.dataset.act;
   const it = sel != null ? byId(sel) : null;
   if (!act || !it) return;
@@ -1137,6 +1212,13 @@ function extraRows(bays) {
     const sep = baskets.reduce((s, b) => s + (b.separator ? Math.max(0, (b.count | 0) - 1) : 0), 0);
     if (sep) rows.push({ name: 'Separador de canasto 30x10x50 (R22)', n: sep, total: sep * bays, detail: '' });
   }
+  const pans = ofKind('panel');
+  if (pans.length) {
+    const barsN = pans.reduce((s, p) => s + Math.max(1, p.bars | 0) * 2, 0);
+    const hooksN = pans.reduce((s, p) => s + Math.max(1, p.bars | 0) * 2 * (p.hooks || 10), 0);
+    rows.push({ name: 'Ganchera (barra)', n: barsN, total: barsN * bays, detail: 'una a cada lado del poste' });
+    rows.push({ name: 'Ganchos', n: hooksN, total: hooksN * bays, detail: '' });
+  }
   const wb = ofKind('wbasket');
   if (wb.length) {
     const seps = wb.map(w => w.seps | 0);
@@ -1144,12 +1226,12 @@ function extraRows(bays) {
     rows.push({ name: 'Canasto con ruedas 120x70 (incl. ruedas) x prof. 60', n: wb.length, total: wb.length * bays,
       detail: sameSeps ? `${seps[0]} separador${seps[0] === 1 ? '' : 'es'} c/u` : 'separadores: ' + seps.join(', ') });
   }
-  const pallets = ofKind('pallet').reduce((s, c) => s + (c.count | 0), 0);
-  if (pallets) rows.push({ name: 'Tarima', n: pallets, total: pallets * bays, detail: '' });
+  const pallets = ofKind('pallet').length;
+  if (pallets) rows.push({ name: 'Viga + tarima (con brazos)', n: pallets, total: pallets * bays, detail: '' });
   const carts = ofKind('cart').reduce((s, c) => s + (c.count | 0), 0);
   if (carts) rows.push({ name: 'Carrito con ruedas', n: carts, total: carts * bays, detail: '' });
-  const boards = ofKind('board').reduce((s, c) => s + (c.count | 0), 0);
-  if (boards) rows.push({ name: 'Casetón (paneles)', n: boards, total: boards * bays, detail: '' });
+  const boards = ofKind('board').length;
+  if (boards) rows.push({ name: 'Casetón', n: boards, total: boards * bays, detail: '' });
   return rows;
 }
 function renderSummary() {
@@ -1166,6 +1248,8 @@ function syncInputs() {
   document.getElementById('inpN').value = S.N;
   document.getElementById('inpRange').value = S.opts.range;
   document.getElementById('chkTable').checked = !!S.opts.table;
+  document.getElementById('selRackColor').value = S.opts.rackColor || 'gris';
+  document.documentElement.style.setProperty('--rack-beam', rc().beam);
   document.getElementById('inpPerLevel').value = S.opts.perLevel;
   document.getElementById('inpRear').value = S.opts.rearPerPanel;
 }
@@ -1184,6 +1268,10 @@ document.querySelectorAll('[data-meta]').forEach(el => bindInput(el, e => { S.me
 bindInput(document.getElementById('inpPerLevel'), e => { S.opts.perLevel = e.value; });
 bindInput(document.getElementById('inpRear'), e => { S.opts.rearPerPanel = e.value; });
 bindInput(document.getElementById('chkTable'), e => { S.opts.table = e.checked; });
+bindInput(document.getElementById('selRackColor'), e => {
+  S.opts.rackColor = e.value;
+  document.documentElement.style.setProperty('--rack-beam', rc().beam);
+});
 bindInput(document.getElementById('inpRange'), e => {
   const ok = !!parseRange(e.value);
   e.style.borderColor = ok ? '' : 'var(--danger)';
@@ -1207,11 +1295,10 @@ bindInput(document.getElementById('inpRange'), e => {
 })();
 
 document.querySelectorAll('[data-model]').forEach(btn => btn.addEventListener('click', () => {
-  const n = +btn.dataset.model;
   const before = snapshot();
   S.N = 48;
-  S.items = modelItems(n);
-  Object.assign(S.meta, MODEL_META[n]);
+  S.items = modelItems();
+  Object.assign(S.meta, DEFAULT_META);
   nextId = Math.max(...S.items.map(i => i.id)) + 1;
   sel = null;
   pushHistory(before); syncInputs(); save(); render(true);
