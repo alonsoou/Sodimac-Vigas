@@ -6,8 +6,9 @@ App web de una sola página para armar el plano de vigas de un rack arrastrando 
 
 Abre `index.html` en Chrome o Edge (doble clic). No necesita instalación ni internet: la librería de Excel está en `vendor/`.
 
-- **Agregar**: arrastra una pieza al rack, o tócala para ponerla en el primer espacio libre. Piezas: vigas (Inicio 10, Viga 7, Viga 10, Término 10), panel con ganchos, charola con rejilla (canasto apilable), canasto con ruedas (al piso), carrito con ruedas, viga + tarima y casetón (paneles que pueden sobresalir del rack).
-- **Viga Default**: botón que carga el modelo base (rack 61/365/122 con canasto con ruedas) como punto de partida.
+- **Agregar**: arrastra una pieza al rack, o tócala para ponerla en el primer espacio libre. Secciones: **Vigas** (Inicio 10, Viga 7, Viga 10, Término 10), **Vigas traseras** (las mismas, dibujadas al 70% de opacidad) y **Aditamentos** (panel con gancheras, charola con rejilla, charola lisa, charola con divisores, canastilla colgante, canasto con ruedas, carrito con ruedas, viga + tarima y frente).
+- **Viga Default**: botón que carga el modelo base: rack 61/365/122 solo con viga de inicio y viga de término.
+- **Modo noche / modo luz**: botón en el encabezado. La imagen para Excel siempre sale con fondo blanco.
 - **Logo**: el encabezado muestra `logo.svg`; reemplaza ese archivo para cambiarlo.
 - **Mover**: arrastra la viga. Se ajusta a las perforaciones (los números azules de 1 a 48). El número amarillo indica la perforación donde está la viga.
 - **Panel, charola, carrito, casetón**: arrástralos para moverlos; arrastra su borde superior o inferior para cambiar el alto. En "Selección" se cambian barras de ganchos, canastos por nivel, separador, cantidad de carritos, número de paneles y color del casetón.
