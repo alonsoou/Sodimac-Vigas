@@ -102,6 +102,7 @@
   .pal-swatch.rear { opacity: .7; }
   .pal-swatch.bandeja { height: 12px; background: linear-gradient(#e3e5e8, #e3e5e8) top/100% 30% no-repeat, #b9bec5; border: 1px solid #5b616a; }
   .pal-swatch.barra { height: 26px; background: linear-gradient(#7d8188, #7d8188) top 4px left 0/100% 3px no-repeat, repeating-linear-gradient(90deg, transparent 0 6px, #c3c7cc 6px 7px, transparent 7px 12px) top 7px left 0/100% 13px no-repeat; }
+  .pal-swatch.fondop { height: 30px; background: radial-gradient(circle, #000 0 1px, transparent 1.4px) 0 0/5px 5px, #4a4e54; border: 1px solid var(--line); }
   .pal-swatch.fondo { height: 30px; background: linear-gradient(135deg, #1f5f8b 0 33%, #c62828 33% 66%, #f2c200 66%); border: 1px solid var(--line); }
   .swatches { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; }
   .swatches button { width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid var(--line); }
@@ -248,7 +249,9 @@
         <label>Metro <input data-meta="metro"></label>
         <label>Cantidad de Bays <input data-meta="bays" type="number" min="1" step="1"></label>
         <label class="full">Rack <input data-meta="rack"></label>
-        <label>Largo viga (a) <input data-meta="largo"></label>
+        <label>Ancho del rack
+          <select data-meta="largo"><option value="122">1.22 m</option><option value="250">2.50 m</option></select>
+        </label>
         <label>Perforaciones <input id="inpN" type="number" min="10" max="120" step="1"></label>
         <label class="full">Color del rack
           <select id="selRackColor"><option value="gris">Gris</option><option value="amarillo">Amarillo</option></select>
@@ -344,6 +347,7 @@ const KINDS = {
   basket: { name: 'Charola con rejilla', sub: 'canasto apilable',      h: 4,  defaults: { count: 2, separator: true },
             palName: 'Charola', palSub: 'con rejilla, lisa o con divisores' },
   cart:   { name: 'Carrito con ruedas',  sub: 'carro móvil',           h: 7,  defaults: { count: 2 } },
+  fondop: { name: 'Fondo perforado',     sub: 'paneles de 120 x 30 cm', h: 24, defaults: { color: '#4a4e54', l: 0, r: 100, cols: 2, pillars: true }, wide: true },
   fondo:  { name: 'Fondo',               sub: 'paneles de 30 cm entre pilares', h: 24, defaults: { color: '#4a4e54', l: 0, r: 100, cols: 2, pillars: true }, wide: true },
   bandeja:{ name: 'Bandeja metálica',    sub: '2 posiciones 120 x 55, paso 25', h: 2, defaults: { side: 'L' }, sided: true },
   barra:  { name: 'Barra de carga',      sub: '120 cm, con gancheras de 40 cm', h: 3, defaults: { side: 'L', hooks: 8 }, sided: true },
@@ -354,7 +358,7 @@ const KINDS = {
   dtray:  { name: 'Charola con divisores', sub: 'divisores de alambre',   h: 4, defaults: { count: 2, dividers: 4 } },
   hbasket:{ name: 'Canastilla colgante', sub: 'cuelga de la viga',        h: 5, defaults: { count: 3 } },
 };
-const KIND_ORDER = ['panel', 'basket', 'hbasket', 'wbasket', 'cart', 'pallet', 'board', 'fondo', 'bandeja', 'barra'];
+const KIND_ORDER = ['panel', 'basket', 'hbasket', 'wbasket', 'cart', 'pallet', 'board', 'fondo', 'fondop', 'bandeja', 'barra'];
 const SIDES = { L: 'Izquierda', R: 'Derecha', B: 'Ambas' };
 const CM_PER_SLOT = 7.5;            // paso entre perforaciones (aprox.)
 const FONDO_SLOTS = 4;              // un panel de fondo mide 30 cm = 4 perforaciones
@@ -462,8 +466,11 @@ function newRangeItem(kind, top) {
   const K = KINDS[kind];
   const h = Math.min(K.h, maxTop(kind)) - 1;
   top = clamp(top, h + 1, maxTop(kind));
-  return { id: -1, kind, top, bottom: top - h, ...K.defaults };
+  const it = { id: -1, kind, top, bottom: top - h, ...K.defaults };
+  if (isFondo(kind)) it.cols = oneCol() ? 1 : 2;   // fondos de 120 cm: 1 en rack de 1.22 m, 2 en 2.50 m
+  return it;
 }
+const isFondo = k => k === 'fondo' || k === 'fondop';
 
 function beamRange(type, pos) { return [pos - TYPES[type].slots + 1, pos]; }
 // Las vigas delanteras y las traseras solo chocan entre las de su mismo plano
@@ -542,6 +549,10 @@ function drawPal(interactive) {
     : { bg: '#ffffff', num: '#1f3fa8', hatchBg: '#d9dbde', hatchLine: '#8a8e94', floor: '#555555', tFill: '#ffffff', tLine: '#1d2126', tHead: '#333333', tText: '#1d2126' };
 }
 
+// 1.22 m se dibuja más angosto que 2.50 m, centrado (proporción visual, no a escala)
+const oneCol = () => String(S.meta.largo).trim() !== '250';
+const rackWidthFactor = () => oneCol() ? 0.62 : 1;
+
 function geometry(W, H, N, withTable, extra) {
   const tableH = withTable ? 74 : 0;
   const tableGap = withTable ? 22 : 0;
@@ -549,7 +560,10 @@ function geometry(W, H, N, withTable, extra) {
   const floorY = H - 16 - tableH - tableGap - 12;
   const T = N + (extra || 0);
   const u = (floorY - topY) / T;
-  const upW = 22, upL = 52, upR = W - 52 - upW;
+  const upW = 22;
+  const innerFull = W - 2 * 52 - 2 * upW;
+  const innerW = innerFull * rackWidthFactor();
+  const upL = 52 + (innerFull - innerW) / 2, upR = upL + upW + innerW;
   const innerL = upL + upW, innerR = upR;
   return {
     W, H, N, u, topY, floorY, upW, upL, upR, innerL, innerR, tableH,
@@ -575,8 +589,8 @@ function buildSVG(W, H, interactive) {
   for (let p = 1; p <= N; p++) {
     const y = g.slotTop(p) + u / 2;
     const hot = interactive && occupiedTops.has(p);
-    if (hot) out.push(`<rect x="${f(18)}" y="${f(g.slotTop(p) + u * 0.06)}" width="30" height="${f(u * 0.88)}" rx="3" fill="#f2d600"/>`);
-    out.push(`<text x="45" y="${f(y)}" text-anchor="end" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="700" font-size="${f(fsNum)}" fill="${hot ? '#1d2126' : P.num}">${p}</text>`);
+    if (hot) out.push(`<rect x="${f(g.upL - 34)}" y="${f(g.slotTop(p) + u * 0.06)}" width="30" height="${f(u * 0.88)}" rx="3" fill="#f2d600"/>`);
+    out.push(`<text x="${f(g.upL - 7)}" y="${f(y)}" text-anchor="end" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="700" font-size="${f(fsNum)}" fill="${hot ? '#1d2126' : P.num}">${p}</text>`);
   }
 
   // Parantes (uprights) con perforaciones
@@ -587,12 +601,12 @@ function buildSVG(W, H, interactive) {
     const cx = x + g.upW / 2;
     out.push(`<line x1="${f(x + 3)}" y1="${f(upTop)}" x2="${f(x + 3)}" y2="${f(g.floorY)}" stroke="${rc().upStroke}" stroke-opacity="0.45" stroke-width="1"/>`);
     out.push(`<line x1="${f(x + g.upW - 3)}" y1="${f(upTop)}" x2="${f(x + g.upW - 3)}" y2="${f(g.floorY)}" stroke="${rc().upStroke}" stroke-opacity="0.45" stroke-width="1"/>`);
-    const hw = Math.min(8, Math.max(3, u * 0.55)), hh = Math.max(2, u * 0.6);
-    const rr = Math.max(0.7, Math.min(2.2, u * 0.13));
+    const { hw, hh } = dropDims(u);
+    const rr = Math.max(0.7, Math.min(2, u * 0.11));
     let drops = '', rounds = '';
     for (let p = 1; p <= N; p++) {
       const top = g.slotTop(p);
-      drops += dropPath(cx, top + u * 0.08, hw, hh);
+      drops += dropPath(cx, top + u * 0.06, hw, hh);
       const ry = top + u * 0.86;
       rounds += `M${f(cx - rr)} ${f(ry)}a${f(rr)} ${f(rr)} 0 1 0 ${f(rr * 2)} 0a${f(rr)} ${f(rr)} 0 1 0 ${f(-rr * 2)} 0`;
     }
@@ -605,7 +619,8 @@ function buildSVG(W, H, interactive) {
   out.push(`<rect x="${floorX1}" y="${f(g.floorY + 1)}" width="${floorX2 - floorX1}" height="10" fill="url(#hatch)" stroke="${P.floor}" stroke-width="1"/>`);
 
   // Fondos: detrás de todo
-  for (const it of items.filter(i => i.kind === 'fondo')) out.push(rangeSVG(it, g, interactive));
+  out.push(`<defs><pattern id="perf" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="0.8" fill="#000000" fill-opacity="0.6"/></pattern></defs>`);
+  for (const it of items.filter(i => isFondo(i.kind))) out.push(rangeSVG(it, g, interactive));
   // Vigas traseras (al 70%)
   for (const it of items.filter(i => i.kind === 'beam' && i.rear)) out.push(beamSVG(it, g, interactive));
   // Frentes: detrás de cualquier aditamento
@@ -628,9 +643,13 @@ function buildSVG(W, H, interactive) {
 
 // Perforación en forma de gota: redonda arriba, en punta abajo
 function dropPath(cx, y, w, h) {
-  const rr = Math.min(w / 2, h / 2);
-  return `M${f(cx - rr)} ${f(y + rr)}A${f(rr)} ${f(rr)} 0 0 1 ${f(cx + rr)} ${f(y + rr)}L${f(cx)} ${f(y + h)}Z`;
+  const R = Math.min(w / 2, h * 0.36), r0 = R * 0.42;
+  const yT = y + R, yB = y + h - r0;
+  return `M${f(cx - R)} ${f(yT)}A${f(R)} ${f(R)} 0 1 1 ${f(cx + R)} ${f(yT)}`
+    + `L${f(cx + r0)} ${f(yB)}A${f(r0)} ${f(r0)} 0 1 1 ${f(cx - r0)} ${f(yB)}Z`;
 }
+// medidas de la gota del parante, compartidas por el parante y el conector
+function dropDims(u) { return { hw: Math.min(9, Math.max(3.5, u * 0.62)), hh: Math.max(2.4, u * 0.66) }; }
 
 function stateOf(it) {
   const isSel = it.id === sel;
@@ -646,19 +665,31 @@ function connectorSVG(g, pos, slots) {
   top = clamp(top, 3, g.N);
   const yTop = g.slotTop(top), yBot = g.slotTop(top - 2) + u;
   const out = [];
-  const pr = Math.max(1.2, Math.min(3, u * 0.2));        // radio de perno
-  for (const px of [g.upL + g.upW - 11, g.upR - 3]) {
-    const pw = 14, pcx = px + pw / 2;
-    out.push(`<rect x="${f(px)}" y="${f(yTop - u * 0.2)}" width="${pw}" height="${f(yBot - yTop + u * 0.4)}" rx="2" fill="${rc().conn}" stroke="${rc().connStroke}" stroke-width="0.9"/>`);
+  const { hw, hh } = dropDims(u);
+  const R = Math.min(hw / 2, hh * 0.36), r0 = R * 0.42;
+  const pr = Math.max(1, r0 * 1.15);                     // perno del tamaño de la parte angosta
+  const sides = [
+    { cx: g.upL + g.upW / 2, x1: g.upL + g.upW / 2 - hw / 2 - 3, x2: g.innerL + 4 },
+    { cx: g.upR + g.upW / 2, x1: g.innerR - 4, x2: g.upR + g.upW / 2 + hw / 2 + 3 },
+  ];
+  for (const sd of sides) {
+    const pcx = sd.cx;
+    // placa del conector (va soldada a la viga y se monta sobre el parante)
+    out.push(`<rect x="${f(sd.x1)}" y="${f(yTop - u * 0.12)}" width="${f(sd.x2 - sd.x1)}" height="${f(yBot - yTop + u * 0.24)}" rx="1.5" fill="${rc().conn}" stroke="${rc().connStroke}" stroke-width="0.9"/>`);
+    let holes = '';
+    for (let k = 0; k < 3; k++) holes += dropPath(pcx, g.slotTop(top - k) + u * 0.06, hw, hh);
+    out.push(`<path d="${holes}" fill="${rc().hole}" fill-opacity="0.85"/>`);
     for (let k = 0; k < 3; k++) {
-      const py = g.slotTop(top - k) + u * 0.35;
+      // el perno baja y se traba en la parte angosta de la gota
+      const py = g.slotTop(top - k) + u * 0.06 + hh - r0;
       out.push(`<circle cx="${f(pcx)}" cy="${f(py)}" r="${f(pr)}" fill="${rc().conn}" stroke="${rc().connStroke}" stroke-width="0.8"/>`);
-      out.push(`<path d="M${f(pcx - pr * 0.6)} ${f(py - pr * 0.6)}l${f(pr * 1.2)} ${f(pr * 1.2)}M${f(pcx + pr * 0.6)} ${f(py - pr * 0.6)}l${f(-pr * 1.2)} ${f(pr * 1.2)}" stroke="${rc().connStroke}" stroke-width="0.7"/>`);
+      out.push(`<path d="M${f(pcx - pr * 0.6)} ${f(py)}h${f(pr * 1.2)}M${f(pcx)} ${f(py - pr * 0.6)}v${f(pr * 1.2)}" stroke="${rc().connStroke}" stroke-width="0.6"/>`);
     }
-    // tornillo hexagonal entre el primer y el segundo perno
-    const by = g.slotTop(top) + u * 0.95, br = pr * 1.1;
+    // tornillo hexagonal de seguridad en la placa, junto a la viga
+    const by = g.slotTop(top) + u * 1.05, br = Math.max(1.4, pr * 1.2);
+    const bxc = (sd.cx + (sd === sides[0] ? sd.x2 : sd.x1)) / 2;
     let hex = '';
-    for (let k = 0; k < 6; k++) { const a = Math.PI / 3 * k; hex += (k ? 'L' : 'M') + f(pcx + br * Math.cos(a)) + ' ' + f(by + br * Math.sin(a)); }
+    for (let k = 0; k < 6; k++) { const a = Math.PI / 3 * k; hex += (k ? 'L' : 'M') + f(bxc + br * Math.cos(a)) + ' ' + f(by + br * Math.sin(a)); }
     out.push(`<path d="${hex}Z" fill="#c9ced6" stroke="#6b717a" stroke-width="0.6"/>`);
   }
   return out.join('');
@@ -711,7 +742,7 @@ function rangeSVG(it, g, interactive) {
   if (it.kind === 'basket') parts.push(basketShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'cart') parts.push(cartShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'board') parts.push(boardShapes(it, x1, x2, y1, y2, u));
-  if (it.kind === 'fondo') parts.push(fondoShapes(it, x1, x2, y1, y2, u));
+  if (isFondo(it.kind)) parts.push(fondoShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'bandeja') parts.push(bandejaShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'barra') parts.push(barraShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'wbasket') parts.push(wbasketShapes(it, x1, x2, y1, y2, u));
@@ -731,7 +762,7 @@ function rangeBox(it, g) {
   const u = g.u;
   const y1 = g.slotTop(it.top), y2 = g.slotTop(it.bottom) + u;
   let x1 = g.innerL + 2, x2 = g.innerR - 2;
-  if (KINDS[it.kind].sided && it.side !== 'B') {
+  if (KINDS[it.kind].sided && it.side !== 'B' && !oneCol()) {
     // una columna de la góndola: mitad izquierda o derecha, dejando el pilar central
     const mid = (g.innerL + g.innerR) / 2;
     if (it.side === 'R') x1 = mid + 4; else x2 = mid - 4;
@@ -951,8 +982,8 @@ function palletShapes(it, g, x1, x2, y1, y2, u) {
 }
 
 function sideSpans(it, x1, x2) {
-  // "Ambas" dibuja una pieza por columna, separadas por el pilar central
-  if (it.side !== 'B') return [[x1, x2]];
+  // "Ambas" dibuja una pieza por columna, separadas por el pilar central (en 1.22 m hay una sola columna)
+  if (it.side !== 'B' || oneCol()) return [[x1, x2]];
   const mid = (x1 + x2) / 2;
   return [[x1, mid - 4], [mid + 4, x2]];
 }
@@ -1006,6 +1037,7 @@ function fondoShapes(it, x1, x2, y1, y2, u) {
     for (let k = 0; k < rows; k++) {
       const py = y1 + ph * k;
       p.push(`<rect x="${f(a)}" y="${f(py)}" width="${f(b - a)}" height="${f(ph)}" fill="${color}" stroke="#000000" stroke-opacity="0.55" stroke-width="1"/>`);
+      if (it.kind === 'fondop') p.push(`<rect x="${f(a + 3)}" y="${f(py + 3)}" width="${f(Math.max(0, b - a - 6))}" height="${f(Math.max(0, ph - 6))}" fill="url(#perf)"/>`);
       p.push(`<rect x="${f(a)}" y="${f(py + 1)}" width="${f(b - a)}" height="${f(Math.max(0.8, ph * 0.04))}" fill="#ffffff" fill-opacity="0.10"/>`);
     }
   }
@@ -1220,7 +1252,7 @@ window.addEventListener('pointermove', e => {
       const h = drag.orig.top - drag.orig.bottom;
       const top = clamp(Math.round(v + drag.offset), h + 1, maxTop(it.kind));
       if (top !== it.top) { it.top = top; it.bottom = top - h; drag.changed = true; }
-      if (KINDS[it.kind].sided && it.side !== 'B') {
+      if (KINDS[it.kind].sided && it.side !== 'B' && !oneCol()) {
         const side = xPct(ptm.x) < 50 ? 'L' : 'R';
         if (side !== it.side) { it.side = side; drag.changed = true; }
       }
@@ -1427,10 +1459,11 @@ function renderProps(force) {
     if (it.kind === 'dtray') extra = `
         <label class="full">Charolas ${stepper('count', it.count, 1, 8)}</label>
         <label class="full">Divisores por charola ${stepper('dividers', it.dividers ?? 4, 0, 12)}</label>`;
-    if (KINDS[it.kind].sided) extra = `
+    if (KINDS[it.kind].sided) extra = (oneCol() ? `
+        <p class="note full" style="margin:0">Rack de 1.22 m: una sola columna.</p>` : `
         <div class="full" style="display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)">Columna
           <div class="row">${Object.entries(SIDES).map(([k, n]) => `<button type="button" data-side="${k}" class="${it.side === k ? 'primary' : ''}">${n}</button>`).join('')}</div>
-        </div>` + (it.kind === 'barra' ? `
+        </div>`) + (it.kind === 'barra' ? `
         <label class="full">Gancheras con etiquetero ${stepper('hooks', it.hooks ?? 8, 1, 30)}</label>` : '');
     if (TRAY_KINDS[it.kind]) extra = `
         <label class="full">Tipo de charola
@@ -1447,12 +1480,12 @@ function renderProps(force) {
         <label>Arriba (perf.) <input data-prop="top" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.top}"></label>
         <label>Abajo (perf.) <input data-prop="bottom" type="number" min="1" max="${maxTop(it.kind)}" step="1" value="${it.bottom}"></label>${extra}
       </div>
-      ${it.kind === 'fondo' ? `<div class="fields" style="margin-top:8px">
+      ${isFondo(it.kind) ? `<div class="fields" style="margin-top:8px">
         <label class="full">Columnas ${stepper('cols', fondoCols(it), 1, 4)}</label>
         <label class="check full" style="flex-direction:row"><input data-prop="pillars" type="checkbox"${it.pillars ? ' checked' : ''}> Pilares de góndola</label>
       </div>
       <p class="note" style="margin-top:4px">${fondoPanels(it)} panel(es) de 30 cm por columna · ${fondoPanels(it) * fondoCols(it)} en total</p>` : ''}
-      <p class="note">${KINDS[it.kind].sided ? 'Arrástrala hacia la columna izquierda o derecha, o elige "Ambas" para ponerla en las dos.' : it.kind === 'fondo' ? 'El fondo va detrás de todo, en paneles de 30 cm (4 perforaciones). Elige un color o usa el selector. Arrastra las asas para cambiar alto y ancho.' : it.kind === 'board' ? 'Arrastra las asas de los bordes para cambiar alto y ancho. Siempre queda dentro del rack y detrás de los aditamentos. 0% – 100% es el ancho entre parantes.' : 'Arrastra el borde superior o inferior para cambiar el alto.'}</p>
+      <p class="note">${KINDS[it.kind].sided ? 'Arrástrala hacia la columna izquierda o derecha, o elige "Ambas" para ponerla en las dos.' : isFondo(it.kind) ? 'El fondo va detrás de todo, en paneles de 30 cm (4 perforaciones). Elige un color o usa el selector. Arrastra las asas para cambiar alto y ancho.' : it.kind === 'board' ? 'Arrastra las asas de los bordes para cambiar alto y ancho. Siempre queda dentro del rack y detrás de los aditamentos. 0% – 100% es el ancho entre parantes.' : 'Arrastra el borde superior o inferior para cambiar el alto.'}</p>
       <div class="row" style="margin-top:4px">
         <button data-act="up">▲ Subir</button><button data-act="down">▼ Bajar</button>
       </div>${KINDS[it.kind].wide ? `
@@ -1627,7 +1660,7 @@ function extraRows(bays) {
   if (pallets) rows.push({ name: 'Viga + tarima (con brazos)', n: pallets, total: pallets * bays, detail: '' });
   const carts = ofKind('cart').reduce((s, c) => s + (c.count | 0), 0);
   if (carts) rows.push({ name: 'Carrito con ruedas', n: carts, total: carts * bays, detail: '' });
-  const sidedCount = k => ofKind(k).reduce((a, it) => a + (it.side === 'B' ? 2 : 1), 0);
+  const sidedCount = k => ofKind(k).reduce((a, it) => a + (it.side === 'B' && !oneCol() ? 2 : 1), 0);
   const bandejas = sidedCount('bandeja');
   if (bandejas) rows.push({ name: 'Conjunto bandejas metálica 2 posiciones (120x55) paso 25', n: bandejas, total: bandejas * bays, detail: '' });
   const barras = sidedCount('barra');
@@ -1636,12 +1669,16 @@ function extraRows(bays) {
     const gch = ofKind('barra').reduce((a, it) => a + (it.hooks | 0), 0);
     rows.push({ name: 'Ganchera con etiquetero 40cm reforzada p/barra de carga', n: gch, total: gch * bays, detail: '' });
   }
-  const fondos = ofKind('fondo');
+  const colorName = c => (COLOR_PRESETS.find(([h]) => h === (c || '').toLowerCase()) || [0, 'color'])[1].toLowerCase();
+  for (const [k, label] of [['fondo', 'Fondo H:30 cm'], ['fondop', 'Fondo perforado 120x30']]) {
+    const list = ofKind(k);
+    if (!list.length) continue;
+    const panelsN = list.reduce((a, it) => a + fondoPanels(it) * fondoCols(it), 0);
+    const colors = [...new Set(list.map(it => colorName(it.color)))].join(', ');
+    rows.push({ name: label, n: panelsN, total: panelsN * bays, detail: colors });
+  }
+  const fondos = S.items.filter(i => isFondo(i.kind));
   if (fondos.length) {
-    const panelsN = fondos.reduce((a, it) => a + fondoPanels(it) * fondoCols(it), 0);
-    const colorName = c => (COLOR_PRESETS.find(([h]) => h === (c || '').toLowerCase()) || [0, 'color'])[1].toLowerCase();
-    const colors = [...new Set(fondos.map(it => colorName(it.color)))].join(', ');
-    rows.push({ name: 'Fondo H:30 cm', n: panelsN, total: panelsN * bays, detail: colors });
     const pil = fondos.filter(it => it.pillars);
     if (pil.length) {
       const pilN = pil.reduce((a, it) => a + fondoCols(it) + 1, 0);
@@ -1683,7 +1720,11 @@ function bindInput(el, apply) {
     save(); render();
   });
 }
-document.querySelectorAll('[data-meta]').forEach(el => bindInput(el, e => { S.meta[e.dataset.meta] = e.value; }));
+document.querySelectorAll('[data-meta]').forEach(el => bindInput(el, e => {
+  S.meta[e.dataset.meta] = e.value;
+  // al cambiar el ancho, los fondos de 120 cm pasan a 1 columna (1.22 m) o 2 columnas (2.50 m)
+  if (e.dataset.meta === 'largo') for (const it of S.items) if (isFondo(it.kind)) it.cols = oneCol() ? 1 : 2;
+}));
 bindInput(document.getElementById('inpPerLevel'), e => { S.opts.perLevel = e.value; });
 bindInput(document.getElementById('inpRear'), e => { S.opts.rearPerPanel = e.value; });
 bindInput(document.getElementById('chkTable'), e => { S.opts.table = e.checked; });
