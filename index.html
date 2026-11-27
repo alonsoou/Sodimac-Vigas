@@ -617,7 +617,7 @@ function beamSVG(it, g, interactive) {
   const sw = bad || isSel ? 3 : 1;
   parts.push(`<rect x="${f(x1)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="${rc().beam}" stroke="${stroke}" stroke-width="${sw}"/>`);
   parts.push(`<rect x="${f(x1)}" y="${f(y)}" width="${f(w)}" height="${f(Math.max(1, h * 0.12))}" fill="${rc().beamTop}"/>`);
-  const label = t.label;
+  const label = it.rear ? "VIGA TRASERA" : t.label;
   const fs = Math.max(4, Math.min(h * 0.8, 17, (w * 0.86) / (label.length * 0.62)));
   parts.push(`<text x="${f(x1 + w / 2)}" y="${f(y + h / 2)}" text-anchor="middle" dominant-baseline="central" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="800" font-size="${f(fs)}" fill="${rc().label}">${esc(label)}</text>`);
   if (interactive) {
@@ -712,7 +712,7 @@ function basketShapes(it, x1, x2, y1, y2, u) {
   const th = Math.max(3, u * 0.45);
   for (const [a, b] of cols) {
     const w = b - a;
-    p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(w)}" height="${f(h)}" fill="#f1f3f5" fill-opacity="0.9" stroke="#8b9097" stroke-width="1.4" rx="1.5"/>`);
+    p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(w)}" height="${f(h)}" fill="#f1f3f5" fill-opacity="0.15" stroke="#8b9097" stroke-width="1.4" rx="1.5"/>`);
     // rejilla: verticales finas
     const vx = Math.max(3, Math.min(6, w / 40));
     let d = '';
