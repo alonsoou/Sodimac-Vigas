@@ -71,7 +71,7 @@
   .pal-swatch.cart { height: 24px; background: #6b7f99; border-radius: 3px 3px 8px 8px; box-shadow: inset 0 -5px 0 #2b2e33; }
   .pal-swatch.board { height: 30px; background: #1f5f8b; border: 1px solid #0e2f46; }
   .pal-swatch.wbasket { height: 26px; background: repeating-linear-gradient(90deg, #9aa0a7 0 1px, transparent 1px 4px), linear-gradient(#e4e7ea 0 40%, #c9cdd2 40%); border: 1px solid #7d8188; border-radius: 2px 2px 6px 6px; }
-  .pal-swatch.pallet { height: 16px; background: linear-gradient(90deg, #8a5a2b 0 18%, transparent 18% 41%, #8a5a2b 41% 59%, transparent 59% 82%, #8a5a2b 82%) bottom/100% 60% no-repeat, linear-gradient(#b07a43, #b07a43) top/100% 40% no-repeat; }
+  .pal-swatch.pallet { height: 22px; background: linear-gradient(#9a6a3a, #9a6a3a) top/100% 62% no-repeat, linear-gradient(var(--rack-beam), var(--rack-beam)) bottom/100% 30% no-repeat; }
   .stepper { display: flex; align-items: stretch; gap: 0; margin-top: 2px; }
   .stepper button { width: 44px; flex: none; font-size: 20px; line-height: 1; padding: 6px 0; border-radius: 7px 0 0 7px; }
   .stepper button:last-child { border-radius: 0 7px 7px 0; }
@@ -294,7 +294,7 @@ const KINDS = {
   cart:   { name: 'Carrito con ruedas',  sub: 'carro móvil',           h: 7,  defaults: { count: 2 } },
   board:  { name: 'Casetón',             sub: 'puede sobresalir del rack', h: 24, defaults: { color: '#1f5f8b', l: 0, r: 100 }, overflow: 8, wide: true },
   wbasket:{ name: 'Canasto con ruedas',  sub: '120 x 70 x 60, al piso',  h: 11, defaults: { count: 2, seps: 3 }, floor: true },
-  pallet: { name: 'Tarima',              sub: 'al piso',                 h: 3,  defaults: { count: 1 }, floor: true },
+  pallet: { name: 'Viga + tarima',       sub: 'tarima sobre viga con brazos', h: 4, defaults: {} },
 };
 const KIND_ORDER = ['panel', 'basket', 'wbasket', 'cart', 'pallet', 'board'];
 const HEADROOM = 8;  // perforaciones extra sobre el rack cuando hay casetones
@@ -519,6 +519,24 @@ function stateOf(it) {
   return { isSel, isPrev, bad };
 }
 
+// Conector de viga: placa sobre cada parante, enganchada en 3 gotas
+function connectorSVG(g, pos, slots) {
+  const u = g.u;
+  let top = pos + (slots === 1 ? 1 : 0);          // 3 perforaciones centradas en la viga
+  top = clamp(top, 3, g.N);
+  const yTop = g.slotTop(top), yBot = g.slotTop(top - 2) + u;
+  const hw = 4, hh = Math.max(2, u * 0.62);
+  const out = [];
+  for (const [px, hx] of [[g.upL + g.upW - 10, g.upL + g.upW - 6], [g.upR - 2, g.upR + 6]]) {
+    out.push(`<rect x="${f(px)}" y="${f(yTop + u * 0.08)}" width="12" height="${f(yBot - yTop - u * 0.16)}" rx="1.5" fill="${rc().conn}" stroke="${rc().connStroke}" stroke-width="0.8"/>`);
+    let d = '';
+    for (let k = 0; k < 3; k++) d += dropPath(hx, g.slotTop(top - k) + (u - hh) / 2, hw, hh);
+    out.push(`<path d="${d}" fill="#1d2126"/>`);
+  }
+  return out.join('');
+}
+const connectorsSVG = connectorSVG;
+
 function beamSVG(it, g, interactive) {
   const t = TYPES[it.type];
   const u = g.u;
@@ -529,15 +547,7 @@ function beamSVG(it, g, interactive) {
   const parts = [];
   const op = isPrev ? ' opacity="0.65"' : (drag && drag.id === it.id && drag.removing ? ' opacity="0.4"' : '');
   parts.push(`<g${interactive && !isPrev ? ` data-id="${it.id}"` : ''}${op}>`);
-  // conectores sobre los parantes
-  const ch = h + 0.5 * u, cy = y - 0.25 * u;
-  for (const cx of [g.upL + g.upW - 9, g.upR - 3]) {
-    parts.push(`<rect x="${f(cx)}" y="${f(cy)}" width="12" height="${f(ch)}" fill="${rc().conn}" stroke="${rc().connStroke}" stroke-width="0.8"/>`);
-    const dots = t.slots;
-    for (let k = 0; k < dots; k++) {
-      parts.push(`<circle cx="${f(cx + 6)}" cy="${f(cy + ch * (k + 1) / (dots + 1))}" r="${f(Math.max(0.8, Math.min(1.8, u * 0.12)))}" fill="#2b2e33"/>`);
-    }
-  }
+  parts.push(connectorsSVG(g, it.pos, t.slots));
   const yellow = S.opts.rackColor === 'amarillo';
   const stroke = bad ? '#c62828' : (isSel ? (yellow ? '#1f3fa8' : '#f2d600') : rc().beamStroke);
   const sw = bad || isSel ? 3 : 1;
@@ -575,7 +585,7 @@ function rangeSVG(it, g, interactive) {
   if (it.kind === 'cart') parts.push(cartShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'board') parts.push(boardShapes(it, x1, x2, y1, y2, u));
   if (it.kind === 'wbasket') parts.push(wbasketShapes(it, x1, x2, y1, y2, u));
-  if (it.kind === 'pallet') parts.push(palletShapes(it, x1, x2, y1, y2, u));
+  if (it.kind === 'pallet') parts.push(palletShapes(it, g, x1, x2, y1, y2, u));
   if (interactive && (isSel || bad)) {
     parts.push(`<rect x="${f(x1 - 2)}" y="${f(y1 - 2)}" width="${f(x2 - x1 + 4)}" height="${f(y2 - y1 + 4)}" fill="none" stroke="${bad ? '#c62828' : '#f2d600'}" stroke-width="3" pointer-events="none"/>`);
   }
@@ -707,20 +717,21 @@ function wbasketShapes(it, x1, x2, y1, y2, u) {
   return p.join('');
 }
 
-function palletShapes(it, x1, x2, y1, y2, u) {
-  const n = clamp(it.count | 0 || 1, 1, 4);
+function palletShapes(it, g, x1, x2, y1, y2, u) {
+  // viga en la perforación inferior + tarima (rectángulo café) apoyada encima
   const p = [];
-  const h = y2 - y1;
-  for (const [a, b] of splitCols(x1 + 2, x2 - 2, n, 6)) {
-    const w = b - a, deck = Math.max(2, h * 0.28), base = Math.max(1.5, h * 0.18);
-    p.push(`<rect x="${f(a)}" y="${f(y1)}" width="${f(w)}" height="${f(deck)}" fill="#b07a43" stroke="#6d4520" stroke-width="1"/>`);
-    p.push(`<rect x="${f(a)}" y="${f(y2 - base)}" width="${f(w)}" height="${f(base)}" fill="#a06d3a" stroke="#6d4520" stroke-width="1"/>`);
-    const bw = Math.max(6, w * 0.12);
-    for (const fx of [0, 0.5, 1]) {
-      const bx = a + (w - bw) * fx;
-      p.push(`<rect x="${f(bx)}" y="${f(y1 + deck)}" width="${f(bw)}" height="${f(h - deck - base)}" fill="#8a5a2b" stroke="#6d4520" stroke-width="1"/>`);
+  const bh = 0.92 * u, by = g.slotTop(it.bottom) + 0.04 * u;
+  const tTop = y1 + u * 0.1, tBot = by - u * 0.05;
+  if (tBot > tTop) {
+    p.push(`<rect x="${f(g.innerL + 6)}" y="${f(tTop)}" width="${f(g.innerR - g.innerL - 12)}" height="${f(tBot - tTop)}" fill="#9a6a3a" stroke="#5e3d1d" stroke-width="1.2"/>`);
+    // brazos que sostienen la tarima
+    for (const ax of [g.innerL + 2, g.innerR - 10]) {
+      p.push(`<rect x="${f(ax)}" y="${f(tBot - Math.min(u * 1.2, tBot - tTop))}" width="8" height="${f(Math.min(u * 1.2, tBot - tTop))}" fill="${rc().conn}" stroke="${rc().connStroke}" stroke-width="0.8"/>`);
     }
   }
+  p.push(connectorSVG(g, it.bottom, 1));
+  p.push(`<rect x="${f(g.innerL)}" y="${f(by)}" width="${f(g.innerR - g.innerL)}" height="${f(bh)}" fill="${rc().beam}" stroke="${rc().beamStroke}" stroke-width="1"/>`);
+  p.push(`<rect x="${f(g.innerL)}" y="${f(by)}" width="${f(g.innerR - g.innerL)}" height="${f(Math.max(1, bh * 0.12))}" fill="${rc().beamTop}"/>`);
   return p.join('');
 }
 
@@ -753,12 +764,18 @@ function panelSVG(it, g, interactive) {
     const by = y1 + (0.45 + i * spacing) * u;
     if (by > y2 - u * 0.4) break;
     for (const [a, b] of [[x1 + 4, mid - 8], [mid + 8, x2 - 4]]) {
-      parts.push(`<rect x="${f(a)}" y="${f(by - barW / 2)}" width="${f(b - a)}" height="${f(barW)}" fill="#c9ccd1"/>`);
+      // riel de la ganchera
+      parts.push(`<rect x="${f(a)}" y="${f(by - barW / 2)}" width="${f(b - a)}" height="${f(barW)}" fill="#9aa0a7"/>`);
       const n = clamp(it.hooks | 0 || 10, 1, 30), step = (b - a) / n;
+      const tagW = Math.min(step * 0.62, 18), tagH = Math.max(2.5, u * 0.42);
+      const hookL = Math.max(3, u * 0.55);
       for (let k = 0; k < n; k++) {
         const hx = a + step * (k + 0.5);
-        parts.push(`<rect x="${f(hx - step * 0.28)}" y="${f(by - barW)}" width="${f(step * 0.56)}" height="${f(barW * 2)}" rx="1" fill="#e9ebee" stroke="#7d8188" stroke-width="0.5"/>`);
-        parts.push(`<line x1="${f(hx)}" y1="${f(by + barW)}" x2="${f(hx)}" y2="${f(by + barW + u * 0.45)}" stroke="#9a9ea4" stroke-width="0.9"/>`);
+        // gancho pequeño donde se cuelga el producto
+        parts.push(`<path d="M${f(hx)} ${f(by)}V${f(by + hookL)}q0 ${f(hookL * 0.35)} ${f(hookL * 0.3)} ${f(hookL * 0.35)}" stroke="#d5d8dc" stroke-width="0.9" fill="none" stroke-linecap="round"/>`);
+        // etiqueta de precio arriba
+        parts.push(`<rect x="${f(hx - tagW / 2)}" y="${f(by - barW / 2 - tagH)}" width="${f(tagW)}" height="${f(tagH)}" fill="#ffffff" stroke="#7d8188" stroke-width="0.5"/>`);
+        parts.push(`<rect x="${f(hx - tagW * 0.3)}" y="${f(by - barW / 2 - tagH * 0.62)}" width="${f(tagW * 0.6)}" height="${f(Math.max(0.6, tagH * 0.22))}" fill="#c62828"/>`);
       }
     }
   }
@@ -1095,8 +1112,6 @@ function renderProps(force) {
     if (it.kind === 'wbasket') extra = `
         <label>Secciones (dibujo) <input data-prop="count" type="number" min="1" max="6" step="1" value="${it.count}"></label>
         <label>Separadores <input data-prop="seps" type="number" min="0" max="10" step="1" value="${it.seps}"></label>`;
-    if (it.kind === 'pallet') extra = `
-        <label>Tarimas <input data-prop="count" type="number" min="1" max="4" step="1" value="${it.count}"></label>`;
     if (it.kind === 'board') extra = `
         <label>Desde (% ancho) <input data-prop="l" type="number" min="${X_MIN}" max="${X_MAX}" step="1" value="${it.l ?? 0}"></label>
         <label>Hasta (% ancho) <input data-prop="r" type="number" min="${X_MIN}" max="${X_MAX}" step="1" value="${it.r ?? 100}"></label>
@@ -1211,8 +1226,8 @@ function extraRows(bays) {
     rows.push({ name: 'Canasto con ruedas 120x70 (incl. ruedas) x prof. 60', n: wb.length, total: wb.length * bays,
       detail: sameSeps ? `${seps[0]} separador${seps[0] === 1 ? '' : 'es'} c/u` : 'separadores: ' + seps.join(', ') });
   }
-  const pallets = ofKind('pallet').reduce((s, c) => s + (c.count | 0), 0);
-  if (pallets) rows.push({ name: 'Tarima', n: pallets, total: pallets * bays, detail: '' });
+  const pallets = ofKind('pallet').length;
+  if (pallets) rows.push({ name: 'Viga + tarima (con brazos)', n: pallets, total: pallets * bays, detail: '' });
   const carts = ofKind('cart').reduce((s, c) => s + (c.count | 0), 0);
   if (carts) rows.push({ name: 'Carrito con ruedas', n: carts, total: carts * bays, detail: '' });
   const boards = ofKind('board').length;
